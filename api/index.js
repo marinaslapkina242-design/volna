@@ -323,5 +323,55 @@ export default async function handler(req, res) {
     });
   }
 
+  // ── GET /api/reels ── лента видео
+  if (url === '/reels' && method === 'GET') {
+    const { data } = await supabase
+      .from('reels')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    return res.json(data || []);
+  }
+
+  // ── POST /api/reels ── загрузить видео
+  if (url === '/reels' && method === 'POST') {
+    const { video_base64, caption, thumbnail_base64 } = body;
+    if (!video_base64) return res.status(400).json({ error: 'Видео обязательно' });
+    const { data, error } = await supabase
+      .from('reels')
+      .insert({
+        user_id: authUser.id,
+        video_base64,
+        thumbnail_base64: thumbnail_base64 || null,
+        caption: caption?.trim() || '',
+        likes: [],
+        views: 0
+      })
+      .select().single();
+    if (error) return res.status(500).json({ error: 'Ошибка загрузки' });
+    return res.json(data);
+  }
+
+  // ── POST /api/reels-action?id=X&action=like|view ──
+  if (url === '/reels-action' && method === 'POST') {
+    const reelId = parseInt(query.id);
+    const action = query.action;
+    const { data: reel } = await supabase
+      .from('reels').select('*').eq('id', reelId).single();
+    if (!reel) return res.status(404).json({ error: 'Не найдено' });
+    if (action === 'like') {
+      let likes = reel.likes || [];
+      const idx = likes.indexOf(authUser.id);
+      if (idx === -1) likes.push(authUser.id); else likes.splice(idx, 1);
+      await supabase.from('reels').update({ likes }).eq('id', reelId);
+      return res.json({ likes });
+    }
+    if (action === 'view') {
+      await supabase.from('reels').update({ views: (reel.views || 0) + 1 }).eq('id', reelId);
+      return res.json({ ok: true });
+    }
+    return res.status(400).json({ error: 'Неизвестное действие' });
+  }
+
   return res.status(404).json({ error: 'Не найдено' });
 }
