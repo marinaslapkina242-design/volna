@@ -8,14 +8,12 @@ const supabase = createClient(
 );
 const JWT_SECRET = process.env.JWT_SECRET || 'volna_dev_secret';
 
-// ── CORS ──
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 }
 
-// ── AUTH MIDDLEWARE ──
 function getUser(req) {
   const token = req.headers['authorization']?.split(' ')[1];
   if (!token) return null;
@@ -40,9 +38,6 @@ function formatTime(isoStr) {
 
 function chatKey(a, b) { return [a, b].sort((x, y) => x - y).join('-'); }
 
-// ══════════════════════════════════════
-// ГЛАВНЫЙ ОБРАБОТЧИК
-// ══════════════════════════════════════
 export default async function handler(req, res) {
   setCors(res);
   if (req.method === 'OPTIONS') return res.status(200).end();
@@ -92,10 +87,9 @@ export default async function handler(req, res) {
     return res.json({ token, user: safeUser(user) });
   }
 
-  // ── Всё ниже требует авторизации ──
+  // ── Auth required below ──
   const authUser = getUser(req);
-  if (!authUser && url !== '/register' && url !== '/login')
-    return res.status(401).json({ error: 'Нет доступа' });
+  if (!authUser) return res.status(401).json({ error: 'Нет доступа' });
 
   // ── GET /api/me ──
   if (url === '/me' && method === 'GET') {
@@ -139,14 +133,23 @@ export default async function handler(req, res) {
     return res.json({ following });
   }
 
-  // ── GET /api/posts ── лента или посты пользователя
+  // ── GET /api/posts ──
   if (url === '/posts' && method === 'GET') {
     if (query.userId) {
+      // all = все посты для вкладки "Все посты"
+      if (query.userId === 'all') {
+        const { data } = await supabase
+          .from('posts').select('*')
+          .order('created_at', { ascending: false })
+          .limit(100);
+        return res.json((data || []).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
+      }
       const { data } = await supabase
         .from('posts').select('*').eq('user_id', parseInt(query.userId))
         .order('created_at', { ascending: false });
       return res.json((data || []).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
     }
+    // лента подписок
     const { data: me } = await supabase
       .from('users').select('following').eq('id', authUser.id).single();
     const ids = [authUser.id, ...(me.following || [])];
@@ -156,13 +159,20 @@ export default async function handler(req, res) {
     return res.json((data || []).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
   }
 
-  // ── POST /api/posts ── создать пост
+  // ── POST /api/posts ──
   if (url === '/posts' && method === 'POST') {
-    const { text } = body;
-    if (!text?.trim()) return res.status(400).json({ error: 'Текст пуст' });
+    const { text, image_base64 } = body;
+    if (!text?.trim() && !image_base64)
+      return res.status(400).json({ error: 'Текст или фото обязательны' });
     const { data, error } = await supabase
       .from('posts')
-      .insert({ user_id: authUser.id, text: text.trim(), likes: [], comments: [] })
+      .insert({
+        user_id: authUser.id,
+        text: text?.trim() || '',
+        likes: [],
+        comments: [],
+        image_base64: image_base64 || null
+      })
       .select().single();
     if (error) return res.status(500).json({ error: 'Ошибка' });
     return res.json({ ...data, timeFormatted: 'только что' });
@@ -194,6 +204,59 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Неизвестное действие' });
   }
 
+  // ── POST /api/heartbeat ── обновить онлайн-статус
+  if (url === '/heartbeat' && method === 'POST') {
+    await supabase.from('presence').upsert({
+      user_id: authUser.id,
+      last_seen: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    return res.json({ ok: true });
+  }
+
+  // ── GET /api/online?ids=1,2,3 ── кто онлайн
+  if (url === '/online' && method === 'GET') {
+    const ids = (query.ids || '').split(',').map(Number).filter(Boolean);
+    if (!ids.length) return res.json({});
+    const since = new Date(Date.now() - 20000).toISOString(); // 20 секунд
+    const { data } = await supabase
+      .from('presence')
+      .select('user_id, last_seen')
+      .in('user_id', ids)
+      .gte('last_seen', since);
+    const result = {};
+    (data || []).forEach(r => { result[r.user_id] = true; });
+    return res.json(result);
+  }
+
+  // ── POST /api/typing?to=X ── я печатаю собеседнику X
+  if (url === '/typing' && method === 'POST') {
+    const toId = parseInt(query.to);
+    await supabase.from('presence').upsert({
+      user_id: authUser.id,
+      last_seen: new Date().toISOString(),
+      typing_to: toId,
+      typing_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+    return res.json({ ok: true });
+  }
+
+  // ── GET /api/typing?from=X ── печатает ли X мне?
+  if (url === '/typing' && method === 'GET') {
+    const fromId = parseInt(query.from);
+    const since = new Date(Date.now() - 3500).toISOString();
+    const { data } = await supabase
+      .from('presence')
+      .select('typing_to, typing_at')
+      .eq('user_id', fromId)
+      .single();
+    const typing =
+      data &&
+      data.typing_to === authUser.id &&
+      data.typing_at &&
+      new Date(data.typing_at) > new Date(Date.now() - 3500);
+    return res.json({ typing: !!typing });
+  }
+
   // ── GET /api/messages ── список чатов
   if (url === '/messages' && method === 'GET' && !query.userId) {
     const { data: rows } = await supabase
@@ -206,7 +269,13 @@ export default async function handler(req, res) {
         .from('users').select('id, name, username').eq('id', otherId).single();
       const msgs = row.messages || [];
       const last = msgs.length ? msgs[msgs.length - 1] : null;
-      return { userId: otherId, name: other?.name || '', username: other?.username || '', lastMessage: last?.text || '', lastTime: last?.time || '' };
+      return {
+        userId: otherId,
+        name: other?.name || '',
+        username: other?.username || '',
+        lastMessage: last?.text || (last?.image_base64 ? '📷 Фото' : ''),
+        lastTime: last?.time || ''
+      };
     }));
     return res.json(convos);
   }
@@ -227,19 +296,31 @@ export default async function handler(req, res) {
   // ── POST /api/messages?userId=X ── отправить сообщение
   if (url === '/messages' && method === 'POST' && query.userId) {
     const otherId = parseInt(query.userId);
-    const { text } = body;
-    if (!text?.trim()) return res.status(400).json({ error: 'Пусто' });
+    const { text, image_base64 } = body;
+    if (!text?.trim() && !image_base64)
+      return res.status(400).json({ error: 'Пусто' });
     const key = chatKey(authUser.id, otherId);
     const { data: existing } = await supabase
       .from('messages').select('*').eq('chat_key', key).single();
-    const newMsg = { from: authUser.id, text: text.trim(), time: new Date().toISOString() };
+    const newMsg = {
+      from: authUser.id,
+      text: text?.trim() || '',
+      image_base64: image_base64 || null,
+      time: new Date().toISOString()
+    };
     if (existing) {
-      await supabase.from('messages').update({ messages: [...(existing.messages || []), newMsg] }).eq('chat_key', key);
+      await supabase.from('messages')
+        .update({ messages: [...(existing.messages || []), newMsg] })
+        .eq('chat_key', key);
     } else {
       const [u1, u2] = key.split('-').map(Number);
-      await supabase.from('messages').insert({ chat_key: key, user1_id: u1, user2_id: u2, messages: [newMsg] });
+      await supabase.from('messages')
+        .insert({ chat_key: key, user1_id: u1, user2_id: u2, messages: [newMsg] });
     }
-    return res.json({ ...newMsg, timeFormatted: new Date(newMsg.time).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' }) });
+    return res.json({
+      ...newMsg,
+      timeFormatted: new Date(newMsg.time).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
+    });
   }
 
   return res.status(404).json({ error: 'Не найдено' });
