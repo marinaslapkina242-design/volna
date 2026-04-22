@@ -359,6 +359,7 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
     <button class="nav-btn" onclick="showSection('profile',this)"><span class="nav-icon">👤</span> Профиль</button>
     <button class="nav-btn" onclick="showSection('friends',this)"><span class="nav-icon">👥</span> Друзья</button>
     <button class="nav-btn" onclick="showSection('messages',this)"><span class="nav-icon">💬</span> Сообщения <span class="nav-badge" id="msg-badge" style="display:none">!</span></button>
+    <button class="nav-btn" onclick="showSection('games',this)"><span class="nav-icon">🎮</span> Игры</button>
     <div class="sidebar-spacer"></div>
     <div class="sidebar-user" onclick="showSection('profile',null)">
       <div class="avatar" id="sb-avatar" style="width:36px;height:36px;"></div>
@@ -456,11 +457,33 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
     </div>
   </div>
 
+    <!-- GAMES -->
+    <div id="section-games" class="section">
+      <div class="section-title">Игры</div>
+      <div class="games-grid">
+        <div class="game-card" onclick="openGame('snake')">
+          <div class="game-icon">🐍</div>
+          <div class="game-title">Змейка</div>
+          <div class="game-desc">Классика — ешь, расти, не врежься</div>
+        </div>
+        <div class="game-card" onclick="openGame('2048')">
+          <div class="game-icon">🔢</div>
+          <div class="game-title">2048</div>
+          <div class="game-desc">Складывай числа до 2048</div>
+        </div>
+        <div class="game-card" onclick="openGame('tetris')">
+          <div class="game-icon">🧱</div>
+          <div class="game-title">Тетрис</div>
+          <div class="game-desc">Укладывай фигуры без пробелов</div>
+        </div>
+      </div>
+    </div>
+
   <!-- MOBILE NAV -->
   <nav class="mobile-nav">
     <button class="mob-nav-btn active" onclick="showSection('feed',this)"><span class="mob-nav-icon">🌊</span><span>Лента</span><div class="mob-active-bar"></div></button>
     <button class="mob-nav-btn" onclick="showSection('reels',this)"><span class="mob-nav-icon">▶️</span><span>Видео</span><div class="mob-active-bar"></div></button>
-    <button class="mob-nav-btn" onclick="showSection('friends',this)"><span class="mob-nav-icon">👥</span><span>Друзья</span><div class="mob-active-bar"></div></button>
+    <button class="mob-nav-btn" onclick="showSection('games',this)"><span class="mob-nav-icon">🎮</span><span>Игры</span><div class="mob-active-bar"></div></button>
     <button class="mob-nav-btn" onclick="showSection('messages',this)"><span class="mob-nav-icon">💬</span><span>Чат</span><div class="mob-active-bar"></div></button>
     <button class="mob-nav-btn" onclick="showSection('profile',this)"><span class="mob-nav-icon">👤</span><span>Я</span><div class="mob-active-bar"></div></button>
   </nav>
@@ -1116,6 +1139,230 @@ document.getElementById('upload-reel-modal').addEventListener('click',function(e
   try { me = await api('GET','/api/me'); await enterApp(); }
   catch { localStorage.removeItem('volna_token'); token=null; }
 })();
+
+// ══ ВРЕМЯ ══
+// Переопределяем formatTime чтобы использовать локальное время пользователя
+function formatTimeLocal(isoStr) {
+  const d = new Date(isoStr);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 1000);
+  if (diff < 60) return 'только что';
+  if (diff < 3600) return `${Math.floor(diff/60)}м назад`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}ч назад`;
+  if (diff < 604800) return `${Math.floor(diff/86400)}д назад`;
+  return d.toLocaleDateString('ru', {day:'numeric', month:'long'});
+}
+// Патчим postHTML чтобы пересчитывать время на клиенте
+const _origPostHTML = postHTML;
+// Переопределяем renderFeed чтобы использовать локальное время
+const _origRenderFeed = renderFeed;
+async function renderFeed() {
+  const c = document.getElementById('posts-container');
+  c.innerHTML = '<div class="loading"><span class="spinner"></span>Загружаем ленту...</div>';
+  try {
+    const posts = await api('GET','/api/posts');
+    // Пересчитываем время локально
+    posts.forEach(p => { p.timeFormatted = formatTimeLocal(p.created_at); });
+    c.innerHTML = posts.length ? posts.map(p=>postHTML(p)).join('') : '<p style="color:var(--text3);text-align:center;padding:2rem">Подпишись на кого-нибудь</p>';
+    attachPostEvents();
+  } catch { c.innerHTML = '<p style="color:var(--danger);text-align:center;padding:1rem">Ошибка загрузки</p>'; }
+}
+
+// ══ ИГРЫ ══
+function openGame(name) {
+  const modal = document.getElementById('game-modal');
+  const title = document.getElementById('game-modal-title');
+  const container = document.getElementById('game-container');
+  modal.classList.add('open');
+  if (name === 'snake') { title.textContent = '🐍 Змейка'; startSnake(container); }
+  else if (name === '2048') { title.textContent = '🔢 2048'; start2048(container); }
+  else if (name === 'tetris') { title.textContent = '🧱 Тетрис'; startTetris(container); }
+}
+function closeGame() {
+  document.getElementById('game-modal').classList.remove('open');
+  document.getElementById('game-container').innerHTML = '';
+  _gameRunning = false;
+}
+let _gameRunning = false;
+
+// ── ЗМЕЙКА ──
+function startSnake(el) {
+  _gameRunning = true;
+  const S = 20, COLS = 20, ROWS = 20;
+  el.innerHTML = `<div style="text-align:center;margin-bottom:.5rem"><span id="snake-score" style="font-family:'Unbounded',sans-serif;font-size:1.1rem;color:var(--accent)">Счёт: 0</span></div><canvas id="snake-canvas" width="${S*COLS}" height="${S*ROWS}" style="border:2px solid var(--border2);border-radius:8px;display:block;margin:0 auto;max-width:100%;"></canvas><div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">WASD / стрелки · Мобильный: свайп</div>`;
+  const cvs = document.getElementById('snake-canvas');
+  const ctx = cvs.getContext('2d');
+  let snake = [{x:10,y:10}], dir={x:1,y:0}, next={x:1,y:0}, food=rndFood(), score=0, dead=false;
+  function rndFood(){return {x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};}
+  function draw(){
+    ctx.fillStyle='#0d0d12'; ctx.fillRect(0,0,S*COLS,S*ROWS);
+    // grid
+    ctx.strokeStyle='rgba(255,255,255,0.03)';
+    for(let i=0;i<COLS;i++){ctx.beginPath();ctx.moveTo(i*S,0);ctx.lineTo(i*S,S*ROWS);ctx.stroke();}
+    for(let i=0;i<ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*S);ctx.lineTo(S*COLS,i*S);ctx.stroke();}
+    // food
+    ctx.fillStyle='#fc5c7d'; ctx.shadowBlur=10; ctx.shadowColor='#fc5c7d';
+    ctx.fillRect(food.x*S+2,food.y*S+2,S-4,S-4); ctx.shadowBlur=0;
+    // snake
+    snake.forEach((seg,i)=>{
+      ctx.fillStyle = i===0 ? '#c084fc' : '#7c5cfc';
+      if(i===0){ctx.shadowBlur=12;ctx.shadowColor='#c084fc';}
+      ctx.fillRect(seg.x*S+1,seg.y*S+1,S-2,S-2); ctx.shadowBlur=0;
+    });
+    if(dead){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,S*COLS,S*ROWS);ctx.fillStyle='#fff';ctx.font='bold 22px Unbounded,sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',S*COLS/2,S*ROWS/2-10);ctx.font='14px Manrope,sans-serif';ctx.fillText('Счёт: '+score,S*COLS/2,S*ROWS/2+20);ctx.fillText('Нажми R для рестарта',S*COLS/2,S*ROWS/2+42);}
+  }
+  function step(){
+    if(!_gameRunning||dead) return;
+    dir=next;
+    const head={x:(snake[0].x+dir.x+COLS)%COLS,y:(snake[0].y+dir.y+ROWS)%ROWS};
+    if(snake.some(s=>s.x===head.x&&s.y===head.y)){dead=true;draw();return;}
+    snake.unshift(head);
+    if(head.x===food.x&&head.y===food.y){score++;document.getElementById('snake-score').textContent='Счёт: '+score;food=rndFood();}
+    else snake.pop();
+    draw();
+    setTimeout(step, Math.max(80,150-score*3));
+  }
+  document.addEventListener('keydown',function snakeKey(e){
+    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',snakeKey);return;}
+    if(e.key==='r'||e.key==='R'){dead=false;snake=[{x:10,y:10}];dir={x:1,y:0};next={x:1,y:0};food=rndFood();score=0;document.getElementById('snake-score').textContent='Счёт: 0';step();return;}
+    if(e.key==='ArrowUp'||e.key==='w'){if(dir.y!==1)next={x:0,y:-1};}
+    else if(e.key==='ArrowDown'||e.key==='s'){if(dir.y!==-1)next={x:0,y:1};}
+    else if(e.key==='ArrowLeft'||e.key==='a'){if(dir.x!==1)next={x:-1,y:0};}
+    else if(e.key==='ArrowRight'||e.key==='d'){if(dir.x!==-1)next={x:1,y:0};}
+  });
+  // свайп
+  let tx=0,ty=0;
+  cvs.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+  cvs.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+    if(Math.abs(dx)>Math.abs(dy)){if(dx>0&&dir.x!==-1)next={x:1,y:0};else if(dx<0&&dir.x!==1)next={x:-1,y:0};}
+    else{if(dy>0&&dir.y!==-1)next={x:0,y:1};else if(dy<0&&dir.y!==1)next={x:0,y:-1};}
+  },{passive:true});
+  step();
+}
+
+// ── 2048 ──
+function start2048(el) {
+  _gameRunning = true;
+  let board=Array(4).fill(null).map(()=>Array(4).fill(0)), score=0;
+  const COLORS={'0':'#1e1e2a','2':'#3a3a5c','4':'#4a3a7c','8':'#6a3afc','16':'#7c5cfc','32':'#9c5cfc','64':'#c084fc','128':'#f472b6','256':'#fc5c7d','512':'#fbbf24','1024':'#4ade80','2048':'#00ffff'};
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem"><span style="font-family:'Unbounded',sans-serif;color:var(--accent);font-size:1rem">2048</span><span id="g2048-score" style="font-family:'Unbounded',sans-serif;color:var(--accent2)">0</span></div><div id="g2048-board" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--surface3);padding:6px;border-radius:10px;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1"></div><div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">Стрелки / WASD · Свайп на мобильном</div>`;
+  function addRnd(){const empty=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!board[r][c])empty.push({r,c});if(!empty.length)return;const{r,c}=empty[Math.floor(Math.random()*empty.length)];board[r][c]=Math.random()<0.9?2:4;}
+  function render(){
+    const b=document.getElementById('g2048-board');if(!b)return;
+    b.innerHTML=board.flat().map(v=>`<div style="background:${COLORS[v]||'#ff6b6b'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:${v>999?'1rem':v>99?'1.2rem':'1.4rem'};font-weight:700;color:${v>4?'#fff':'var(--text2)'};aspect-ratio:1">${v||''}</div>`).join('');
+    document.getElementById('g2048-score').textContent=score;
+  }
+  function slide(row){const r=row.filter(x=>x);for(let i=0;i<r.length-1;i++){if(r[i]===r[i+1]){r[i]*=2;score+=r[i];r.splice(i+1,1);}}while(r.length<4)r.push(0);return r;}
+  function move(dir){
+    let moved=false;
+    const old=JSON.stringify(board);
+    if(dir==='left')board=board.map(r=>slide(r));
+    else if(dir==='right')board=board.map(r=>slide(r.reverse()).reverse());
+    else if(dir==='up'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]);col=slide(col);board.forEach((r,i)=>r[c]=col[i]);}}
+    else if(dir==='down'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]).reverse();col=slide(col).reverse();board.forEach((r,i)=>r[c]=col[i]);}}
+    if(JSON.stringify(board)!==old){moved=true;addRnd();}
+    render();
+    if(board.flat().includes(2048)){setTimeout(()=>alert('🎉 Ты выиграл! Счёт: '+score),50);}
+  }
+  addRnd();addRnd();render();
+  document.addEventListener('keydown',function g2048Key(e){
+    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',g2048Key);return;}
+    if(e.key==='ArrowLeft'||e.key==='a'){e.preventDefault();move('left');}
+    else if(e.key==='ArrowRight'||e.key==='d'){e.preventDefault();move('right');}
+    else if(e.key==='ArrowUp'||e.key==='w'){e.preventDefault();move('up');}
+    else if(e.key==='ArrowDown'||e.key==='s'){e.preventDefault();move('down');}
+  });
+  let tx=0,ty=0;
+  el.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+  el.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+    if(Math.abs(dx)>Math.abs(dy)){move(dx>0?'right':'left');}else{move(dy>0?'down':'up');}
+  },{passive:true});
+}
+
+// ── ТЕТРИС ──
+function startTetris(el) {
+  _gameRunning = true;
+  const COLS=10,ROWS=20,S=24;
+  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem"><span style="font-family:'Unbounded',sans-serif;color:var(--accent);font-size:.9rem">ТЕТРИС</span><span id="tet-score" style="font-family:'Unbounded',sans-serif;color:var(--accent2)">0</span></div><div style="display:flex;gap:12px;justify-content:center"><canvas id="tet-canvas" width="${S*COLS}" height="${S*ROWS}" style="border:2px solid var(--border2);border-radius:8px"></canvas><div><div style="font-size:.7rem;color:var(--text3);margin-bottom:.3rem">СЛЕД.</div><canvas id="tet-next" width="${S*4}" height="${S*4}" style="border:1px solid var(--border);border-radius:6px"></canvas><div style="font-size:.7rem;color:var(--text3);margin-top:.75rem">Ур. <span id="tet-level">1</span></div><div style="margin-top:1rem;font-size:.7rem;color:var(--text3)">←→ движение<br>↑ поворот<br>↓ быстро<br>Пробел: дроп</div></div></div>`;
+  const cvs=document.getElementById('tet-canvas'),ctx=cvs.getContext('2d');
+  const nxt=document.getElementById('tet-next'),nctx=nxt.getContext('2d');
+  const PIECES=[
+    [[1,1,1,1]],
+    [[1,1],[1,1]],
+    [[0,1,0],[1,1,1]],
+    [[1,0,0],[1,1,1]],
+    [[0,0,1],[1,1,1]],
+    [[0,1,1],[1,1,0]],
+    [[1,1,0],[0,1,1]]
+  ];
+  const COLS_C=['#00f5ff','#fbbf24','#c084fc','#fc5c7d','#4ade80','#7c5cfc','#f472b6'];
+  let grid=Array(ROWS).fill(null).map(()=>Array(COLS).fill(0));
+  let piece,px,py,score=0,level=1,lines=0,gameOver=false,nextPiece;
+  function rndPiece(){const i=Math.floor(Math.random()*PIECES.length);return{shape:PIECES[i],color:COLS_C[i]};}
+  function spawn(){piece=nextPiece||rndPiece();nextPiece=rndPiece();px=3;py=0;if(collide(piece.shape,px,py)){gameOver=true;}}
+  function collide(shape,ox,oy){return shape.some((row,r)=>row.some((v,c)=>v&&(oy+r>=ROWS||ox+c<0||ox+c>=COLS||grid[oy+r]?.[ox+c])));}
+  function place(){piece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v)grid[py+r][px+c]=piece.color;}));clearLines();spawn();}
+  function clearLines(){let cleared=0;for(let r=ROWS-1;r>=0;r--){if(grid[r].every(v=>v)){grid.splice(r,1);grid.unshift(Array(COLS).fill(0));cleared++;r++;}}lines+=cleared;score+=cleared*100*level;level=Math.floor(lines/10)+1;document.getElementById('tet-score').textContent=score;document.getElementById('tet-level').textContent=level;}
+  function rotate(s){return s[0].map((_,i)=>s.map(r=>r[i]).reverse());}
+  function draw(){
+    ctx.fillStyle='#0d0d12';ctx.fillRect(0,0,S*COLS,S*ROWS);
+    // grid lines
+    ctx.strokeStyle='rgba(255,255,255,0.03)';
+    for(let i=0;i<=COLS;i++){ctx.beginPath();ctx.moveTo(i*S,0);ctx.lineTo(i*S,S*ROWS);ctx.stroke();}
+    for(let i=0;i<=ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*S);ctx.lineTo(S*COLS,i*S);ctx.stroke();}
+    // placed
+    grid.forEach((row,r)=>row.forEach((v,c)=>{if(v){ctx.fillStyle=v;ctx.fillRect(c*S+1,r*S+1,S-2,S-2);}}));
+    // ghost
+    if(piece){let gy=py;while(!collide(piece.shape,px,gy+1))gy++;piece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v){ctx.fillStyle='rgba(255,255,255,0.1)';ctx.fillRect((px+c)*S+1,(gy+r)*S+1,S-2,S-2);}}));}
+    // current
+    if(piece)piece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v){ctx.fillStyle=piece.color;ctx.shadowBlur=8;ctx.shadowColor=piece.color;ctx.fillRect((px+c)*S+1,(py+r)*S+1,S-2,S-2);ctx.shadowBlur=0;}}));
+    if(gameOver){ctx.fillStyle='rgba(0,0,0,.7)';ctx.fillRect(0,0,S*COLS,S*ROWS);ctx.fillStyle='#fff';ctx.font='bold 18px Unbounded,sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',S*COLS/2,S*ROWS/2-10);ctx.font='13px Manrope,sans-serif';ctx.fillText('Счёт: '+score,S*COLS/2,S*ROWS/2+15);}
+    // next
+    nctx.fillStyle='#0d0d12';nctx.fillRect(0,0,S*4,S*4);
+    if(nextPiece)nextPiece.shape.forEach((row,r)=>row.forEach((v,c)=>{if(v){nctx.fillStyle=nextPiece.color;nctx.fillRect(c*S+1,r*S+1,S-2,S-2);}}));
+  }
+  function loop(){if(!_gameRunning)return;if(!gameOver){if(!collide(piece.shape,px,py+1))py++;else place();draw();}setTimeout(loop,Math.max(100,500-level*40));}
+  document.addEventListener('keydown',function tetKey(e){
+    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',tetKey);return;}
+    if(gameOver)return;
+    if(e.key==='ArrowLeft'&&!collide(piece.shape,px-1,py))px--;
+    else if(e.key==='ArrowRight'&&!collide(piece.shape,px+1,py))px++;
+    else if(e.key==='ArrowDown')py++;
+    else if(e.key==='ArrowUp'){const r=rotate(piece.shape);if(!collide(r,px,py))piece.shape=r;}
+    else if(e.key===' '){while(!collide(piece.shape,px,py+1))py++;place();}
+    draw();
+  });
+  // touch
+  let ttx=0,tty=0;
+  cvs.addEventListener('touchstart',e=>{ttx=e.touches[0].clientX;tty=e.touches[0].clientY;},{passive:true});
+  cvs.addEventListener('touchend',e=>{
+    const dx=e.changedTouches[0].clientX-ttx,dy=e.changedTouches[0].clientY-tty;
+    if(Math.abs(dy)>Math.abs(dx)){if(dy>30){while(!collide(piece.shape,px,py+1))py++;place();}else{const r=rotate(piece.shape);if(!collide(r,px,py))piece.shape=r;}}
+    else{if(dx>0&&!collide(piece.shape,px+1,py))px++;else if(!collide(piece.shape,px-1,py))px--;}
+    draw();
+  },{passive:true});
+  spawn();draw();loop();
+}
 </script>
-</body>
-</html>
+
+<!-- GAME MODAL -->
+<div class="modal-overlay" id="game-modal" style="z-index:300">
+  <div class="modal-box" style="width:520px;max-width:98vw;max-height:95vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+      <h3 class="modal-title" id="game-modal-title" style="margin:0"></h3>
+      <button onclick="closeGame()" style="background:none;border:none;color:var(--text3);font-size:1.4rem;cursor:pointer;padding:.2rem .5rem;border-radius:8px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text3)'">✕</button>
+    </div>
+    <div id="game-container"></div>
+  </div>
+</div>
+
+<style>
+.games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;}
+.game-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;}
+.game-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(124,92,252,.2);}
+.game-icon{font-size:2.5rem;margin-bottom:.5rem;}
+.game-title{font-family:'Unbounded',sans-serif;font-size:.9rem;font-weight:700;margin-bottom:.4rem;}
+.game-desc{font-size:.8rem;color:var(--text3);}
+</style>
