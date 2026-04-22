@@ -95,29 +95,30 @@ export default async function handler(req, res) {
   if (url === '/me' && method === 'GET') {
     const { data } = await supabase
       .from('users')
-      .select('id, username, name, bio, joined, interests, banner_color, following')
+      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64')
       .eq('id', authUser.id).single();
     return res.json(data);
   }
 
   // ── PATCH /api/me ──
   if (url === '/me' && method === 'PATCH') {
-    const { name, bio, interests, banner_color } = body;
+    const { name, bio, interests, banner_color, avatar_base64 } = body;
     const updates = {};
     if (name) updates.name = name;
     if (bio !== undefined) updates.bio = bio;
     if (interests !== undefined) updates.interests = interests;
     if (banner_color !== undefined) updates.banner_color = banner_color;
+    if (avatar_base64 !== undefined) updates.avatar_base64 = avatar_base64;
     const { data } = await supabase
       .from('users').update(updates).eq('id', authUser.id)
-      .select('id, username, name, bio, joined, interests, banner_color, following').single();
+      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64').single();
     return res.json(data);
   }
 
   // ── GET /api/users ──
   if (url === '/users' && method === 'GET') {
     const { data } = await supabase
-      .from('users').select('id, username, name, bio, following');
+      .from('users').select('id, username, name, bio, following, avatar_base64, banner_color, joined, interests');
     return res.json(data || []);
   }
 
