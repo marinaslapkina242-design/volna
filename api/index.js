@@ -373,5 +373,27 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Неизвестное действие' });
   }
 
+  // ── GET /api/scores ── получить рекорды текущего пользователя
+  if (url === '/scores' && method === 'GET') {
+    const { data } = await supabase
+      .from('users').select('scores').eq('id', authUser.id).single();
+    return res.json(data?.scores || {});
+  }
+
+  // ── POST /api/scores?game=snake&score=42 ── обновить рекорд
+  if (url === '/scores' && method === 'POST') {
+    const game = query.game;
+    const newScore = parseInt(query.score);
+    if (!game || isNaN(newScore)) return res.status(400).json({ error: 'Нет данных' });
+    const { data: user } = await supabase
+      .from('users').select('scores').eq('id', authUser.id).single();
+    const scores = user?.scores || {};
+    if (!scores[game] || newScore > scores[game]) {
+      scores[game] = newScore;
+      await supabase.from('users').update({ scores }).eq('id', authUser.id);
+    }
+    return res.json({ best: scores[game] });
+  }
+
   return res.status(404).json({ error: 'Не найдено' });
 }
