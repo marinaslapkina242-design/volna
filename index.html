@@ -458,23 +458,38 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   </div>
 
     <!-- GAMES -->
-    <div id="section-games" class="section">
-      <div class="section-title">Игры</div>
-      <div class="games-grid">
-        <div class="game-card" onclick="openGame('snake')">
-          <div class="game-icon">🐍</div>
-          <div class="game-title">Змейка</div>
-          <div class="game-desc">Классика — ешь, расти, не врежься</div>
+    <div id="section-games" class="section" style="max-width:100%;padding:0;">
+      <div class="games-layout">
+        <div class="games-sidebar">
+          <div class="games-sidebar-title">Игры</div>
+          <div class="game-tab" id="gtab-snake" onclick="openGameInline('snake')">
+            <div class="game-tab-icon">🐍</div>
+            <div class="game-tab-info">
+              <div class="game-tab-name">Змейка</div>
+              <div class="game-tab-desc">Ешь, расти, не врежься</div>
+            </div>
+          </div>
+          <div class="game-tab" id="gtab-2048" onclick="openGameInline('2048')">
+            <div class="game-tab-icon">🔢</div>
+            <div class="game-tab-info">
+              <div class="game-tab-name">2048</div>
+              <div class="game-tab-desc">Складывай числа</div>
+            </div>
+          </div>
+          <div class="game-tab" id="gtab-tetris" onclick="openGameInline('tetris')">
+            <div class="game-tab-icon">🧱</div>
+            <div class="game-tab-info">
+              <div class="game-tab-name">Тетрис</div>
+              <div class="game-tab-desc">Укладывай фигуры</div>
+            </div>
+          </div>
         </div>
-        <div class="game-card" onclick="openGame('2048')">
-          <div class="game-icon">🔢</div>
-          <div class="game-title">2048</div>
-          <div class="game-desc">Складывай числа до 2048</div>
-        </div>
-        <div class="game-card" onclick="openGame('tetris')">
-          <div class="game-icon">🧱</div>
-          <div class="game-title">Тетрис</div>
-          <div class="game-desc">Укладывай фигуры без пробелов</div>
+        <div class="games-content" id="games-content">
+          <div class="games-empty">
+            <div style="font-size:3rem;margin-bottom:1rem">🎮</div>
+            <div style="font-size:1rem;color:var(--text2);font-weight:500">Выбери игру слева</div>
+            <div style="font-size:.85rem;color:var(--text3);margin-top:.4rem">Три игры на любой вкус</div>
+          </div>
         </div>
       </div>
     </div>
@@ -1169,21 +1184,36 @@ async function renderFeed() {
 }
 
 // ══ ИГРЫ ══
-function openGame(name) {
-  const modal = document.getElementById('game-modal');
-  const title = document.getElementById('game-modal-title');
-  const container = document.getElementById('game-container');
-  modal.classList.add('open');
-  if (name === 'snake') { title.textContent = '🐍 Змейка'; startSnake(container); }
-  else if (name === '2048') { title.textContent = '🔢 2048'; start2048(container); }
-  else if (name === 'tetris') { title.textContent = '🧱 Тетрис'; startTetris(container); }
-}
-function closeGame() {
-  document.getElementById('game-modal').classList.remove('open');
-  document.getElementById('game-container').innerHTML = '';
-  _gameRunning = false;
-}
 let _gameRunning = false;
+let _currentGame = null;
+
+function openGameInline(name) {
+  // Подсветка активной вкладки
+  document.querySelectorAll('.game-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById('gtab-' + name);
+  if (tab) tab.classList.add('active');
+
+  // Останавливаем предыдущую игру
+  _gameRunning = false;
+  _currentGame = name;
+
+  const content = document.getElementById('games-content');
+  content.innerHTML = '<div class="loading"><span class="spinner"></span>Загружаем...</div>';
+
+  setTimeout(() => {
+    content.innerHTML = '';
+    const container = document.createElement('div');
+    container.style.cssText = 'width:100%;display:flex;flex-direction:column;align-items:center;';
+    content.appendChild(container);
+    if (name === 'snake') startSnake(container);
+    else if (name === '2048') start2048(container);
+    else if (name === 'tetris') startTetris(container);
+  }, 50);
+}
+
+// Оставляем для обратной совместимости (не используется)
+function openGame(name) { openGameInline(name); }
+function closeGame() { _gameRunning = false; }
 
 // ── ЗМЕЙКА ──
 async function startSnake(el) {
@@ -1374,7 +1404,7 @@ function startTetris(el) {
   }
   function loop(){if(!_gameRunning)return;if(!gameOver){if(!collide(piece.shape,px,py+1))py++;else place();draw();}setTimeout(loop,Math.max(100,500-level*40));}
   document.addEventListener('keydown',function tetKey(e){
-    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',tetKey);return;}
+    if(!_gameRunning||_currentGame!=='tetris'){document.removeEventListener('keydown',tetKey);return;}
     if(gameOver)return;
     if(e.key==='ArrowLeft'&&!collide(piece.shape,px-1,py))px--;
     else if(e.key==='ArrowRight'&&!collide(piece.shape,px+1,py))px++;
@@ -1396,22 +1426,26 @@ function startTetris(el) {
 }
 </script>
 
-<!-- GAME MODAL -->
-<div class="modal-overlay" id="game-modal" style="z-index:300">
-  <div class="modal-box" style="width:520px;max-width:98vw;max-height:95vh;overflow-y:auto">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
-      <h3 class="modal-title" id="game-modal-title" style="margin:0"></h3>
-      <button onclick="closeGame()" style="background:none;border:none;color:var(--text3);font-size:1.4rem;cursor:pointer;padding:.2rem .5rem;border-radius:8px" onmouseover="this.style.color='var(--danger)'" onmouseout="this.style.color='var(--text3)'">✕</button>
-    </div>
-    <div id="game-container"></div>
-  </div>
-</div>
 
 <style>
-.games-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1rem;}
-.game-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r2);padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;}
-.game-card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 8px 24px rgba(124,92,252,.2);}
-.game-icon{font-size:2.5rem;margin-bottom:.5rem;}
-.game-title{font-family:'Unbounded',sans-serif;font-size:.9rem;font-weight:700;margin-bottom:.4rem;}
-.game-desc{font-size:.8rem;color:var(--text3);}
+/* ── GAMES LAYOUT ── */
+.games-layout{display:flex;height:calc(100vh - 0px);min-height:500px;}
+.games-sidebar{width:220px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1.2rem .75rem;gap:.3rem;}
+.games-sidebar-title{font-family:'Unbounded',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:.4rem .6rem 1rem;}
+.game-tab{display:flex;align-items:center;gap:.75rem;padding:.7rem .75rem;border-radius:var(--r);cursor:pointer;transition:background .15s,border-color .15s;border:1px solid transparent;}
+.game-tab:hover{background:var(--surface2);border-color:var(--border);}
+.game-tab.active{background:var(--accent-glow);border-color:rgba(124,92,252,.3);}
+.game-tab-icon{font-size:1.4rem;width:32px;text-align:center;flex-shrink:0;}
+.game-tab-name{font-size:.9rem;font-weight:600;color:var(--text);}
+.game-tab-desc{font-size:.75rem;color:var(--text3);margin-top:.1rem;}
+.games-content{flex:1;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:1.5rem;}
+.games-empty{text-align:center;}
+@media(max-width:768px){
+  .games-layout{flex-direction:column;height:auto;}
+  .games-sidebar{width:100%;flex-direction:row;padding:.75rem;gap:.5rem;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
+  .games-sidebar-title{display:none;}
+  .game-tab{flex-direction:column;align-items:center;gap:.25rem;padding:.6rem .75rem;min-width:80px;text-align:center;}
+  .game-tab-desc{display:none;}
+  .games-content{padding:1rem;min-height:400px;}
+}
 </style>
