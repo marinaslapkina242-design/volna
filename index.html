@@ -59,8 +59,9 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .auth-err{color:var(--danger);font-size:.85rem;text-align:center;min-height:1.2em;}
 
 /* ══ APP LAYOUT ══ */
-#page-app{flex-direction:row;align-items:stretch;}
-
+#page-app{flex-direction:row;align-items:stretch;min-height:100vh;}
+html,body{height:100%;}
+#page-app.active{display:flex;height:100%;}
 /* SIDEBAR desktop */
 .sidebar{width:260px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1.5rem 1rem;position:fixed;left:0;top:0;bottom:0;z-index:100;gap:.3rem;}
 .sidebar-logo{font-family:'Unbounded',sans-serif;font-size:1.5rem;font-weight:700;background:linear-gradient(135deg,#c084fc,#7c5cfc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;padding:.5rem .75rem 1.5rem;}
@@ -77,14 +78,14 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .sidebar-user-name{font-size:.88rem;font-weight:600;color:var(--text);}
 .sidebar-user-handle{font-size:.75rem;color:var(--text3);}
 
-.main-content{margin-left:260px;flex:1;min-height:100vh;max-width:calc(100vw - 260px);}
+.main-content{margin-left:260px;flex:1;min-height:100vh;max-width:calc(100vw - 260px);display:flex;flex-direction:column;}
 .section{display:none;padding:2rem 2.5rem;max-width:720px;}
 .section.active{display:block;}
 /* Секции которые занимают весь экран */
 #section-reels,#section-games,#section-messages{max-width:100%;padding:0;}
 #section-reels.active{display:flex;flex-direction:column;}
 #section-games.active{display:flex;}
-#section-messages.active{display:flex;}
+#section-messages.active{display:flex;flex:1;height:100vh;}
 .section-title{font-size:1.4rem;font-weight:700;margin-bottom:1.5rem;color:var(--text);}
 
 /* FEED */
@@ -187,7 +188,7 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 
 /* ══ MESSAGES — полный редизайн для мобильных ══ */
 #section-messages{max-width:100%;padding:0;}
-.messages-layout{display:flex;height:calc(100vh - 0px);}
+.messages-layout{display:flex;height:100%;}
 
 /* Список чатов */
 .conv-list{width:300px;border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;background:var(--surface);}
@@ -253,11 +254,11 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .friends-search:focus{border-color:var(--accent);}
 
 /* ══ REELS ══ */
-#section-reels{padding:0;max-width:100%;height:100vh;overflow:hidden;flex:1;}
+#section-reels{padding:0;max-width:100%;height:100vh;height:100dvh;overflow:hidden;flex:1;}
 .reels-container{height:100%;width:100%;position:relative;}
 .reels-feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
 .reels-feed::-webkit-scrollbar{display:none;}
-.reel-item{height:100vh;scroll-snap-align:start;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.reel-item{height:100vh;height:100dvh;scroll-snap-align:start;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .reel-video{width:100%;height:100%;object-fit:cover;}
 .reel-overlay{position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.7) 0%,transparent 40%,transparent 70%,rgba(0,0,0,.3) 100%);pointer-events:none;}
 .reel-info{position:absolute;bottom:0;left:0;right:60px;padding:1.5rem 1rem 2rem;z-index:2;}
@@ -299,15 +300,33 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   .sidebar{display:none;}
   .main-content{margin-left:0;max-width:100vw;padding-bottom:var(--mobile-nav-h);}
   .section{padding:1rem 1rem calc(var(--mobile-nav-h) + 1rem);}
-  #section-messages{padding:0;height:calc(100vh - var(--mobile-nav-h));}
-  .messages-layout{height:100%;flex-direction:column;}
+
+  /* Messages — точная высота с учётом навбара */
+  #section-messages{
+    padding:0;
+    height:calc(100vh - var(--mobile-nav-h));
+    height:calc(100dvh - var(--mobile-nav-h));
+    overflow:hidden;
+  }
+  .messages-layout{
+    height:100%;
+    flex-direction:column;
+    overflow:hidden;
+  }
 
   /* На мобильном показываем либо список либо чат */
-  .conv-list{width:100%;border-right:none;border-bottom:1px solid var(--border);height:100%;}
+  .conv-list{width:100%;border-right:none;border-bottom:1px solid var(--border);height:100%;overflow-y:auto;}
   .conv-list.hidden{display:none;}
-  .chat-area{height:100%;}
+  .chat-area{
+    height:100%;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    min-height:0;
+  }
   .chat-area.hidden{display:none;}
   .chat-back{display:block;}
+  .chat-messages{flex:1;overflow-y:auto;min-height:0;}
 
   .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:var(--mobile-nav-h);background:var(--surface);border-top:1px solid var(--border);z-index:100;padding:0;}
   .mob-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1;cursor:pointer;font-size:.62rem;color:var(--text3);background:none;border:none;font-family:'Manrope',sans-serif;transition:color .15s;padding:.4rem;}
@@ -317,19 +336,18 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   .mob-nav-btn .mob-active-bar{display:none;width:18px;height:2px;background:var(--accent2);border-radius:1px;margin-top:2px;}
   .mob-nav-btn.active .mob-active-bar{display:block;}
 
-  #section-reels{height:calc(100vh - var(--mobile-nav-h));}
+  /* Reels — точная высота без браузерного UI */
+  #section-reels{
+    height:calc(100vh - var(--mobile-nav-h));
+    height:calc(100dvh - var(--mobile-nav-h));
+    overflow:hidden;
+  }
   .reels-container{height:100%;}
-  .reel-item{height:calc(100vh - var(--mobile-nav-h));}
+  .reel-item{
+    height:calc(100vh - var(--mobile-nav-h));
+    height:calc(100dvh - var(--mobile-nav-h));
+  }
   .reel-upload-btn{top:8px;right:8px;}
-  /* Games на мобильном */
-  #section-games{height:auto;}
-  .games-layout{flex-direction:column;height:auto;}
-  .games-sidebar{width:100%;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);padding:.6rem;gap:.4rem;flex-shrink:0;}
-  .games-sidebar-title{display:none;}
-  .game-tab{flex-direction:column;align-items:center;gap:.2rem;min-width:72px;padding:.5rem .4rem;text-align:center;}
-  .game-tab-desc{display:none;}
-  .game-tab-icon{font-size:1.6rem;width:auto;}
-  .games-content{min-height:60vh;padding:.75rem;}
 }
 
 /* Fullscreen image viewer */
