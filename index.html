@@ -79,6 +79,11 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .main-content{margin-left:260px;flex:1;min-height:100vh;max-width:calc(100vw - 260px);}
 .section{display:none;padding:2rem 2.5rem;max-width:720px;}
 .section.active{display:block;}
+/* Секции которые занимают весь экран */
+#section-reels,#section-games,#section-messages{max-width:100%;padding:0;}
+#section-reels.active{display:flex;flex-direction:column;}
+#section-games.active{display:flex;}
+#section-messages.active{display:flex;}
 .section-title{font-size:1.4rem;font-weight:700;margin-bottom:1.5rem;color:var(--text);}
 
 /* FEED */
@@ -247,8 +252,8 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .friends-search:focus{border-color:var(--accent);}
 
 /* ══ REELS ══ */
-#section-reels{padding:0;max-width:100%;height:100vh;overflow:hidden;}
-.reels-container{height:100%;position:relative;}
+#section-reels{padding:0;max-width:100%;height:100vh;overflow:hidden;flex:1;}
+.reels-container{height:100%;width:100%;position:relative;}
 .reels-feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scrollbar-width:none;}
 .reels-feed::-webkit-scrollbar{display:none;}
 .reel-item{height:100vh;scroll-snap-align:start;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden;}
@@ -265,8 +270,8 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .reel-action-btn:active{transform:scale(.88);}
 .reel-action-icon{font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.5));}
 .reel-action-btn.liked .reel-action-icon{filter:none;}
-.reel-upload-btn{position:fixed;bottom:80px;right:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;border-radius:999px;padding:.65rem 1.2rem;color:#fff;font-family:'Manrope',sans-serif;font-size:.85rem;font-weight:700;cursor:pointer;z-index:50;box-shadow:0 4px 20px rgba(124,92,252,.5);transition:opacity .2s;}
-.reel-upload-btn:hover{opacity:.9;}
+.reel-upload-btn{position:absolute;top:12px;right:12px;background:rgba(0,0,0,.55);backdrop-filter:blur(8px);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:.5rem 1rem;color:#fff;font-family:'Manrope',sans-serif;font-size:.82rem;font-weight:700;cursor:pointer;z-index:50;transition:background .2s;}
+.reel-upload-btn:hover{background:rgba(124,92,252,.7);}
 .reel-views{font-size:.7rem;color:rgba(255,255,255,.7);}
 .reel-sound{position:absolute;bottom:5rem;left:1rem;font-size:.78rem;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:.4rem;z-index:2;}
 /* Загрузчик видео */
@@ -311,8 +316,18 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   .mob-nav-btn.active .mob-active-bar{display:block;}
 
   #section-reels{height:calc(100vh - var(--mobile-nav-h));}
+  .reels-container{height:100%;}
   .reel-item{height:calc(100vh - var(--mobile-nav-h));}
-  .reel-upload-btn{bottom:calc(var(--mobile-nav-h) + 16px);}
+  .reel-upload-btn{top:8px;right:8px;}
+  /* Games на мобильном */
+  #section-games{height:auto;}
+  .games-layout{flex-direction:column;height:auto;}
+  .games-sidebar{width:100%;flex-direction:row;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);padding:.6rem;gap:.4rem;flex-shrink:0;}
+  .games-sidebar-title{display:none;}
+  .game-tab{flex-direction:column;align-items:center;gap:.2rem;min-width:72px;padding:.5rem .4rem;text-align:center;}
+  .game-tab-desc{display:none;}
+  .game-tab-icon{font-size:1.6rem;width:auto;}
+  .games-content{min-height:60vh;padding:.75rem;}
 }
 
 /* Fullscreen image viewer */
@@ -455,7 +470,6 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
         </div>
       </div>
     </div>
-  </div>
 
     <!-- GAMES -->
     <div id="section-games" class="section" style="max-width:100%;padding:0;">
@@ -493,6 +507,8 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
         </div>
       </div>
     </div>
+
+  </div>
 
   <!-- MOBILE NAV -->
   <nav class="mobile-nav">
@@ -1567,12 +1583,5 @@ function startTetris(el) {
 .game-tab-desc{font-size:.75rem;color:var(--text3);margin-top:.1rem;}
 .games-content{flex:1;display:flex;align-items:center;justify-content:center;overflow-y:auto;padding:1.5rem;}
 .games-empty{text-align:center;}
-@media(max-width:768px){
-  .games-layout{flex-direction:column;height:auto;}
-  .games-sidebar{width:100%;flex-direction:row;padding:.75rem;gap:.5rem;overflow-x:auto;border-right:none;border-bottom:1px solid var(--border);}
-  .games-sidebar-title{display:none;}
-  .game-tab{flex-direction:column;align-items:center;gap:.25rem;padding:.6rem .75rem;min-width:80px;text-align:center;}
-  .game-tab-desc{display:none;}
-  .games-content{padding:1rem;min-height:400px;}
-}
+/* mobile overrides already in main @media block above */
 </style>
