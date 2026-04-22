@@ -205,13 +205,36 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .chat-header-name{font-weight:600;font-size:.95rem;}
 .chat-header-status{font-size:.75rem;color:var(--text3);margin-top:.1rem;}
 .chat-back{background:none;border:none;color:var(--text2);cursor:pointer;font-size:1.2rem;padding:.2rem .5rem;display:none;}
-.chat-messages{flex:1;overflow-y:auto;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.5rem;}
-.msg-bubble{max-width:72%;padding:.65rem 1rem;border-radius:16px;font-size:.9rem;line-height:1.5;animation:fadeIn .2s ease;word-break:break-word;}
-.msg-bubble.me{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;align-self:flex-end;border-bottom-right-radius:4px;}
-.msg-bubble.them{background:var(--surface2);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;}
+.chat-messages{flex:1;overflow-y:auto;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.5rem;padding-bottom:.5rem;}
+/* Обёртка пузыря — позволяет позиционировать меню */
+.msg-wrap{display:flex;flex-direction:column;max-width:78%;}
+.msg-wrap.me{align-self:flex-end;align-items:flex-end;}
+.msg-wrap.them{align-self:flex-start;align-items:flex-start;}
+.msg-bubble{padding:.65rem 1rem;border-radius:16px;font-size:.9rem;line-height:1.5;word-break:break-word;position:relative;cursor:pointer;user-select:none;}
+.msg-wrap.me .msg-bubble{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;border-bottom-right-radius:4px;}
+.msg-wrap.them .msg-bubble{background:var(--surface2);color:var(--text);border-bottom-left-radius:4px;}
 .msg-bubble img{max-width:200px;border-radius:8px;display:block;margin-top:.4rem;cursor:pointer;}
-.msg-time{font-size:.68rem;opacity:.6;margin-top:.2rem;display:block;text-align:right;}
-.msg-bubble.them .msg-time{text-align:left;}
+.msg-time{font-size:.68rem;opacity:.55;margin-top:.25rem;display:block;}
+.msg-wrap.me .msg-time{text-align:right;}
+.msg-wrap.them .msg-time{text-align:left;}
+.msg-edited{font-size:.65rem;opacity:.5;margin-left:.3rem;}
+.msg-deleted{font-style:italic;opacity:.45;}
+/* Реакции */
+.msg-reactions{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;}
+.msg-reaction{background:var(--surface2);border:1px solid var(--border2);border-radius:999px;padding:2px 7px;font-size:.8rem;cursor:pointer;transition:background .15s;display:flex;align-items:center;gap:3px;}
+.msg-reaction:hover,.msg-reaction.mine{background:var(--accent-glow);border-color:rgba(124,92,252,.4);}
+.msg-reaction span{font-size:.7rem;color:var(--text3);}
+/* Контекстное меню сообщения */
+.msg-menu{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:.4rem 0;z-index:500;box-shadow:0 8px 24px rgba(0,0,0,.4);min-width:160px;animation:fadeIn .12s ease;}
+.msg-menu-item{padding:.55rem 1rem;font-size:.88rem;cursor:pointer;color:var(--text);display:flex;align-items:center;gap:.6rem;transition:background .1s;}
+.msg-menu-item:hover{background:var(--surface2);}
+.msg-menu-item.danger{color:var(--danger);}
+.msg-menu-divider{height:1px;background:var(--border);margin:.3rem 0;}
+/* Эмодзи-пикер в меню */
+.msg-emoji-row{display:flex;gap:4px;padding:.5rem 1rem;}
+.msg-emoji-btn{font-size:1.2rem;cursor:pointer;padding:2px 4px;border-radius:6px;transition:background .1s;}
+.msg-emoji-btn:hover{background:var(--surface3);}
+/* Печатает */
 .typing-indicator{display:none;align-self:flex-start;background:var(--surface2);border-radius:16px;border-bottom-left-radius:4px;padding:.65rem 1rem;}
 .typing-indicator.show{display:flex;gap:4px;align-items:center;}
 .typing-dot{width:6px;height:6px;background:var(--text3);border-radius:50%;animation:typingBounce 1.2s ease infinite;}
@@ -219,7 +242,7 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .typing-dot:nth-child(3){animation-delay:.4s;}
 @keyframes typingBounce{0%,60%,100%{transform:none;}30%{transform:translateY(-6px);}}
 
-/* Поле ввода чата */
+/* Поле ввода чата — всегда видно на мобильном */
 .chat-input-wrap{padding:.75rem 1rem;border-top:1px solid var(--border);background:var(--surface);flex-shrink:0;}
 .chat-input-row{display:flex;gap:.6rem;align-items:flex-end;}
 .chat-input-box{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:.6rem 1rem;color:var(--text);font-family:'Manrope',sans-serif;font-size:.9rem;outline:none;resize:none;max-height:120px;overflow-y:auto;transition:border-color .2s;line-height:1.4;}
@@ -233,6 +256,10 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .chat-img-preview img{max-height:120px;border-radius:8px;border:1px solid var(--border2);}
 .chat-img-preview button{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;font-size:.75rem;display:flex;align-items:center;justify-content:center;}
 .chat-empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:.92rem;flex-direction:column;gap:.5rem;}
+/* Инлайн редактирование */
+.edit-input-wrap{margin-top:.3rem;display:flex;gap:.4rem;}
+.edit-input-wrap input{flex:1;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:.4rem .75rem;color:var(--text);font-family:'Manrope',sans-serif;font-size:.88rem;outline:none;}
+.edit-save-btn{background:var(--accent);border:none;border-radius:8px;color:#fff;padding:.4rem .75rem;cursor:pointer;font-size:.82rem;}
 
 /* FRIENDS */
 .friends-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;}
@@ -296,12 +323,14 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   #section-messages{padding:0;height:calc(100vh - var(--mobile-nav-h));}
   .messages-layout{height:100%;flex-direction:column;}
 
-  /* На мобильном показываем либо список либо чат */
-  .conv-list{width:100%;border-right:none;border-bottom:1px solid var(--border);height:100%;}
+  /* На мобильном: список занимает весь экран, чат — тоже весь с input внизу */
+  .conv-list{width:100%;border-right:none;height:100%;flex:1;}
   .conv-list.hidden{display:none;}
-  .chat-area{height:100%;}
+  .chat-area{height:100%;display:flex;flex-direction:column;}
   .chat-area.hidden{display:none;}
   .chat-back{display:block;}
+  /* input всегда прилеплен к низу экрана в чате */
+  .chat-area .chat-input-wrap{position:sticky;bottom:0;z-index:10;}
 
   .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:var(--mobile-nav-h);background:var(--surface);border-top:1px solid var(--border);z-index:100;padding:0;}
   .mob-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1;cursor:pointer;font-size:.62rem;color:var(--text3);background:none;border:none;font-family:'Manrope',sans-serif;transition:color .15s;padding:.4rem;}
@@ -359,7 +388,7 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
     <button class="nav-btn" onclick="showSection('profile',this)"><span class="nav-icon">👤</span> Профиль</button>
     <button class="nav-btn" onclick="showSection('friends',this)"><span class="nav-icon">👥</span> Друзья</button>
     <button class="nav-btn" onclick="showSection('messages',this)"><span class="nav-icon">💬</span> Сообщения <span class="nav-badge" id="msg-badge" style="display:none">!</span></button>
-    <button class="nav-btn" onclick="showSection('games',this)"><span class="nav-icon">🚫</span> ... </button>
+    <button class="nav-btn" onclick="showSection('games',this)"><span class="nav-icon">🎮</span> Игры</button>
     <div class="sidebar-spacer"></div>
     <div class="sidebar-user" onclick="showSection('profile',null)">
       <div class="avatar" id="sb-avatar" style="width:36px;height:36px;"></div>
@@ -886,6 +915,7 @@ function filterConvs() {
 function showConvList() {
   document.getElementById('conv-list-panel').classList.remove('hidden');
   document.getElementById('chat-area-panel').classList.add('hidden');
+  if (window._chatPoll) { clearInterval(window._chatPoll); window._chatPoll = null; }
 }
 
 async function openChat(uid) {
@@ -894,7 +924,6 @@ async function openChat(uid) {
   if (!other) return;
   const ini = initials(other.name);
 
-  // На мобильном — прячем список, показываем чат
   if (isMobile()) {
     document.getElementById('conv-list-panel').classList.add('hidden');
     document.getElementById('chat-area-panel').classList.remove('hidden');
@@ -931,34 +960,61 @@ async function openChat(uid) {
     </div>`;
 
   await loadMessages(uid);
-
-  // Polling typing & messages
   if (window._chatPoll) clearInterval(window._chatPoll);
   window._chatPoll = setInterval(() => pollChat(uid), 3000);
 }
 
 async function loadMessages(uid) {
-  const msgs = await api('GET','/api/messages?userId='+uid);
-  renderMessages(msgs);
+  try {
+    const msgs = await api('GET','/api/messages?userId='+uid);
+    renderMessages(msgs);
+  } catch {}
+}
+
+// ── Рендер пузырей ──
+function msgBubbleHTML(m) {
+  const isMe = m.from === me.id;
+  if (m.deleted) {
+    return `<div class="msg-wrap ${isMe?'me':'them'}">
+      <div class="msg-bubble"><span class="msg-deleted">Сообщение удалено</span></div>
+    </div>`;
+  }
+  const imgHtml = m.image_base64
+    ? `<img src="${m.image_base64}" onclick="openImgViewer('${m.image_base64}')">`
+    : '';
+  const editedMark = m.edited ? '<span class="msg-edited">изменено</span>' : '';
+  const reactionsHtml = renderReactionsHTML(m);
+  return `<div class="msg-wrap ${isMe?'me':'them'}" data-mid="${m.id||''}">
+    <div class="msg-bubble" oncontextmenu="showMsgMenu(event,'${m.id||''}',${isMe})" ontouchstart="touchMsgStart(event,'${m.id||''}',${isMe})">
+      ${m.text ? escHtml(m.text) : ''}
+      ${imgHtml}
+      <span class="msg-time">${m.timeFormatted||''}${editedMark}</span>
+    </div>
+    ${reactionsHtml}
+  </div>`;
+}
+
+function renderReactionsHTML(m) {
+  const reactions = m.reactions || {};
+  const entries = Object.entries(reactions).filter(([,uids])=>uids.length>0);
+  if (!entries.length) return '';
+  const html = entries.map(([emoji, uids]) => {
+    const mine = uids.includes(me.id) ? 'mine' : '';
+    return `<div class="msg-reaction ${mine}" onclick="reactToMsg('${m.id}','${emoji}')">
+      ${emoji}<span>${uids.length}</span>
+    </div>`;
+  }).join('');
+  return `<div class="msg-reactions">${html}</div>`;
 }
 
 function renderMessages(msgs) {
   const container = document.getElementById('chat-msgs');
   if (!container) return;
+  const wasAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 60;
   container.innerHTML = msgs.length
-    ? msgs.map(m => {
-        const isMe = m.from === me.id;
-        const imgHtml = m.image_base64
-          ? `<img src="${m.image_base64}" onclick="openImgViewer('${m.image_base64}')">`
-          : '';
-        return `<div class="msg-bubble ${isMe?'me':'them'}">
-          ${m.text ? escHtml(m.text) : ''}
-          ${imgHtml}
-          <span class="msg-time">${m.timeFormatted||''}</span>
-        </div>`;
-      }).join('')
+    ? msgs.map(m => msgBubbleHTML(m)).join('')
     : '<div style="text-align:center;color:var(--text3);font-size:.88rem;padding:2rem">Начни переписку!</div>';
-  container.scrollTop = container.scrollHeight;
+  if (wasAtBottom) container.scrollTop = container.scrollHeight;
 }
 
 async function pollChat(uid) {
@@ -966,7 +1022,6 @@ async function pollChat(uid) {
   try {
     const msgs = await api('GET','/api/messages?userId='+uid);
     renderMessages(msgs);
-    // Проверяем typing
     const t = await api('GET','/api/typing?from='+uid);
     const ti = document.getElementById('typing-indicator');
     if (ti) ti.classList.toggle('show', !!t.typing);
@@ -979,7 +1034,7 @@ function handleChatKey(e) {
 
 function sendTyping() {
   clearTimeout(typingTimer);
-  typingTimer = setTimeout(() => { api('POST','/api/typing?to='+currentChat).catch(()=>{}); }, 300);
+  typingTimer = setTimeout(() => { if(currentChat) api('POST','/api/typing?to='+currentChat).catch(()=>{}); }, 300);
 }
 
 function handleChatImg(e) {
@@ -993,7 +1048,13 @@ function handleChatImg(e) {
   };
   reader.readAsDataURL(file);
 }
-function clearChatImg() { _chatImgBase64 = null; const w=document.getElementById('chat-img-preview-wrap'); if(w) w.innerHTML=''; document.getElementById('chat-img-input').value=''; }
+function clearChatImg() {
+  _chatImgBase64 = null;
+  const w = document.getElementById('chat-img-preview-wrap');
+  if (w) w.innerHTML = '';
+  const inp = document.getElementById('chat-img-input');
+  if (inp) inp.value = '';
+}
 
 async function sendMsg() {
   const inputEl = document.getElementById('chat-input');
@@ -1006,15 +1067,101 @@ async function sendMsg() {
     clearChatImg();
     const container = document.getElementById('chat-msgs');
     if (container) {
-      const isImg = msg.image_base64;
-      const bubble = document.createElement('div');
-      bubble.className = 'msg-bubble me';
-      bubble.innerHTML = `${msg.text ? escHtml(msg.text) : ''}${isImg?`<img src="${msg.image_base64}" onclick="openImgViewer('${msg.image_base64}')">`:''}
-        <span class="msg-time">${msg.timeFormatted}</span>`;
-      container.appendChild(bubble);
+      const div = document.createElement('div');
+      div.innerHTML = msgBubbleHTML(msg);
+      container.appendChild(div.firstChild);
       container.scrollTop = container.scrollHeight;
     }
     renderConvList();
+  } catch(ex) { toast('⚠️ '+ex.message); }
+}
+
+// ── Контекстное меню сообщения ──
+const QUICK_EMOJIS = ['❤️','😂','👍','🔥','😮','😢'];
+let _msgMenuActive = null;
+let _touchTimer = null;
+
+function touchMsgStart(e, msgId, isMe) {
+  _touchTimer = setTimeout(() => showMsgMenu(e, msgId, isMe), 500);
+}
+document.addEventListener('touchend', () => clearTimeout(_touchTimer), {passive:true});
+
+function showMsgMenu(e, msgId, isMe) {
+  e.preventDefault();
+  closeMsgMenu();
+  if (!msgId) return;
+  const menu = document.createElement('div');
+  menu.className = 'msg-menu';
+  menu.id = 'msg-menu-active';
+  // Эмодзи-ряд
+  menu.innerHTML = `<div class="msg-emoji-row">
+    ${QUICK_EMOJIS.map(em=>`<span class="msg-emoji-btn" onclick="reactToMsg('${msgId}','${em}');closeMsgMenu()">${em}</span>`).join('')}
+  </div><div class="msg-menu-divider"></div>`;
+  if (isMe) {
+    menu.innerHTML += `
+      <div class="msg-menu-item" onclick="startEditMsg('${msgId}');closeMsgMenu()">✏️ Изменить</div>
+      <div class="msg-menu-item danger" onclick="deleteMsg('${msgId}');closeMsgMenu()">🗑 Удалить</div>`;
+  } else {
+    menu.innerHTML += `<div class="msg-menu-item" onclick="closeMsgMenu()">✕ Закрыть</div>`;
+  }
+  // позиционируем
+  document.body.appendChild(menu);
+  _msgMenuActive = menu;
+  const x = e.clientX ?? e.touches?.[0]?.clientX ?? window.innerWidth/2;
+  const y = e.clientY ?? e.touches?.[0]?.clientY ?? window.innerHeight/2;
+  const mw = menu.offsetWidth || 180, mh = menu.offsetHeight || 140;
+  menu.style.left = Math.min(x, window.innerWidth - mw - 8) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - mh - 8) + 'px';
+}
+function closeMsgMenu() {
+  if (_msgMenuActive) { _msgMenuActive.remove(); _msgMenuActive = null; }
+}
+document.addEventListener('click', (e) => {
+  if (_msgMenuActive && !_msgMenuActive.contains(e.target)) closeMsgMenu();
+});
+
+async function reactToMsg(msgId, emoji) {
+  if (!currentChat || !msgId) return;
+  try {
+    await api('POST', `/api/messages?userId=${currentChat}&msgId=${msgId}&action=react`, { emoji });
+    await loadMessages(currentChat);
+  } catch(ex) { toast('⚠️ '+ex.message); }
+}
+
+async function deleteMsg(msgId) {
+  if (!currentChat || !msgId) return;
+  try {
+    await api('DELETE', `/api/messages?userId=${currentChat}&msgId=${msgId}`);
+    await loadMessages(currentChat);
+    toast('🗑 Удалено');
+  } catch(ex) { toast('⚠️ '+ex.message); }
+}
+
+function startEditMsg(msgId) {
+  if (!currentChat || !msgId) return;
+  const wrap = document.querySelector(`.msg-wrap[data-mid="${msgId}"]`);
+  if (!wrap) return;
+  const bubble = wrap.querySelector('.msg-bubble');
+  const currentText = bubble?.innerText?.split('\n')[0]?.trim() || '';
+  // вставляем поле редактирования под пузырём
+  const existing = wrap.querySelector('.edit-input-wrap');
+  if (existing) { existing.remove(); return; }
+  const editWrap = document.createElement('div');
+  editWrap.className = 'edit-input-wrap';
+  editWrap.innerHTML = `<input id="edit-msg-inp" value="${escHtml(currentText)}" onkeydown="if(event.key==='Enter')saveEditMsg('${msgId}')">
+    <button class="edit-save-btn" onclick="saveEditMsg('${msgId}')">✓</button>`;
+  wrap.appendChild(editWrap);
+  setTimeout(() => editWrap.querySelector('input')?.focus(), 50);
+}
+
+async function saveEditMsg(msgId) {
+  const inp = document.getElementById('edit-msg-inp');
+  const text = inp?.value?.trim();
+  if (!text) return;
+  try {
+    await api('PATCH', `/api/messages?userId=${currentChat}&msgId=${msgId}`, { text });
+    await loadMessages(currentChat);
+    toast('✅ Изменено');
   } catch(ex) { toast('⚠️ '+ex.message); }
 }
 
