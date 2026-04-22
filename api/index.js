@@ -303,6 +303,7 @@ export default async function handler(req, res) {
     const { data: existing } = await supabase
       .from('messages').select('*').eq('chat_key', key).single();
     const newMsg = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
       from: authUser.id,
       text: text?.trim() || '',
       image_base64: image_base64 || null,
@@ -393,6 +394,59 @@ export default async function handler(req, res) {
       await supabase.from('users').update({ scores }).eq('id', authUser.id);
     }
     return res.json({ best: scores[game] });
+  }
+
+  // DELETE /api/messages?userId=X&msgId=Y
+  if (url === '/messages' && method === 'DELETE' && query.userId && query.msgId) {
+    const otherId = parseInt(query.userId);
+    const key = chatKey(authUser.id, otherId);
+    const { data: row } = await supabase.from('messages').select('*').eq('chat_key', key).single();
+    if (!row) return res.status(404).json({ error: 'Чат не найден' });
+    const msgs = row.messages || [];
+    const idx = msgs.findIndex(m => m.id === query.msgId);
+    if (idx === -1) return res.status(404).json({ error: 'Не найдено' });
+    if (msgs[idx].from !== authUser.id) return res.status(403).json({ error: 'Нельзя удалить чужое' });
+    msgs[idx] = { ...msgs[idx], deleted: true, text: '', image_base64: null };
+    await supabase.from('messages').update({ messages: msgs }).eq('chat_key', key);
+    return res.json({ ok: true });
+  }
+
+  // PATCH /api/messages?userId=X&msgId=Y
+  if (url === '/messages' && method === 'PATCH' && query.userId && query.msgId) {
+    const otherId = parseInt(query.userId);
+    const { text } = body;
+    if (!text?.trim()) return res.status(400).json({ error: 'Пусто' });
+    const key = chatKey(authUser.id, otherId);
+    const { data: row } = await supabase.from('messages').select('*').eq('chat_key', key).single();
+    if (!row) return res.status(404).json({ error: 'Чат не найден' });
+    const msgs = row.messages || [];
+    const idx = msgs.findIndex(m => m.id === query.msgId);
+    if (idx === -1) return res.status(404).json({ error: 'Не найдено' });
+    if (msgs[idx].from !== authUser.id) return res.status(403).json({ error: 'Нельзя редактировать чужое' });
+    msgs[idx] = { ...msgs[idx], text: text.trim(), edited: true };
+    await supabase.from('messages').update({ messages: msgs }).eq('chat_key', key);
+    return res.json({ ok: true, text: text.trim() });
+  }
+
+  // POST /api/messages?userId=X&msgId=Y&action=react
+  if (url === '/messages' && method === 'POST' && query.userId && query.msgId && query.action === 'react') {
+    const otherId = parseInt(query.userId);
+    const { emoji } = body;
+    if (!emoji) return res.status(400).json({ error: 'Нет эмодзи' });
+    const key = chatKey(authUser.id, otherId);
+    const { data: row } = await supabase.from('messages').select('*').eq('chat_key', key).single();
+    if (!row) return res.status(404).json({ error: 'Чат не найден' });
+    const msgs = row.messages || [];
+    const idx = msgs.findIndex(m => m.id === query.msgId);
+    if (idx === -1) return res.status(404).json({ error: 'Не найдено' });
+    const reactions = msgs[idx].reactions || {};
+    if (!reactions[emoji]) reactions[emoji] = [];
+    const ui = reactions[emoji].indexOf(authUser.id);
+    if (ui === -1) reactions[emoji].push(authUser.id); else reactions[emoji].splice(ui, 1);
+    if (reactions[emoji].length === 0) delete reactions[emoji];
+    msgs[idx] = { ...msgs[idx], reactions };
+    await supabase.from('messages').update({ messages: msgs }).eq('chat_key', key);
+    return res.json({ reactions });
   }
 
   return res.status(404).json({ error: 'Не найдено' });
