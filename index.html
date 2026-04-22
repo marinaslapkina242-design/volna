@@ -67,7 +67,8 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 .nav-btn{display:flex;align-items:center;gap:.9rem;padding:.7rem .9rem;border-radius:var(--r);cursor:pointer;font-size:.92rem;font-weight:500;color:var(--text2);background:none;border:none;width:100%;text-align:left;transition:background .15s,color .15s;}
 .nav-btn:hover{background:var(--surface2);color:var(--text);}
 .nav-btn.active{background:var(--accent-glow);color:var(--accent2);font-weight:600;}
-.nav-icon{font-size:1.15rem;width:22px;text-align:center;}
+.nav-icon{display:flex;align-items:center;justify-content:center;width:22px;height:22px;flex-shrink:0;}
+.nav-icon svg{stroke:currentColor;}
 .nav-badge{margin-left:auto;background:var(--danger);color:#fff;font-size:.7rem;font-weight:700;padding:1px 6px;border-radius:999px;min-width:18px;text-align:center;}
 .sidebar-spacer{flex:1;}
 .sidebar-user{display:flex;align-items:center;gap:.75rem;padding:.75rem;border-radius:var(--r);background:var(--surface2);cursor:pointer;transition:background .15s;}
@@ -311,7 +312,8 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   .mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;height:var(--mobile-nav-h);background:var(--surface);border-top:1px solid var(--border);z-index:100;padding:0;}
   .mob-nav-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:1;cursor:pointer;font-size:.62rem;color:var(--text3);background:none;border:none;font-family:'Manrope',sans-serif;transition:color .15s;padding:.4rem;}
   .mob-nav-btn.active{color:var(--accent2);}
-  .mob-nav-icon{font-size:1.3rem;line-height:1;}
+  .mob-nav-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;}
+  .mob-nav-icon svg{stroke:currentColor;}
   .mob-nav-btn .mob-active-bar{display:none;width:18px;height:2px;background:var(--accent2);border-radius:1px;margin-top:2px;}
   .mob-nav-btn.active .mob-active-bar{display:block;}
 
@@ -369,18 +371,18 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   <!-- SIDEBAR -->
   <nav class="sidebar">
     <div class="sidebar-logo">Волна</div>
-    <button class="nav-btn active" onclick="showSection('feed',this)"><span class="nav-icon">🌊</span> Лента</button>
-    <button class="nav-btn" onclick="showSection('reels',this)"><span class="nav-icon">▶️</span> Видео</button>
-    <button class="nav-btn" onclick="showSection('profile',this)"><span class="nav-icon">👤</span> Профиль</button>
-    <button class="nav-btn" onclick="showSection('friends',this)"><span class="nav-icon">👥</span> Друзья</button>
-    <button class="nav-btn" onclick="showSection('messages',this)"><span class="nav-icon">💬</span> Сообщения <span class="nav-badge" id="msg-badge" style="display:none">!</span></button>
-    <button class="nav-btn" onclick="showSection('games',this)"><span class="nav-icon">🎮</span> Игры</button>
+    <button class="nav-btn active" onclick="showSection('feed',this)"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span> Лента</button>
+    <button class="nav-btn" onclick="showSection('reels',this)"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span> Видео</button>
+    <button class="nav-btn" onclick="showSection('profile',this)"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Профиль</button>
+    <button class="nav-btn" onclick="showSection('friends',this)"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Друзья</button>
+    <button class="nav-btn" onclick="showSection('messages',this)"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> Сообщения <span class="nav-badge" id="msg-badge" style="display:none">!</span></button>
+
     <div class="sidebar-spacer"></div>
     <div class="sidebar-user" onclick="showSection('profile',null)">
       <div class="avatar" id="sb-avatar" style="width:36px;height:36px;"></div>
       <div><div class="sidebar-user-name" id="sb-name"></div><div class="sidebar-user-handle" id="sb-handle"></div></div>
     </div>
-    <button class="nav-btn" style="margin-top:.5rem;color:var(--danger)" onclick="doLogout()"><span class="nav-icon">🚪</span> Выйти</button>
+    <button class="nav-btn" style="margin-top:.5rem;color:var(--danger)" onclick="doLogout()"><span class="nav-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span> Выйти</button>
   </nav>
 
   <div class="main-content">
@@ -412,12 +414,18 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 
     <!-- PROFILE -->
     <div id="section-profile" class="section">
+      <div id="prof-back-bar" style="display:none;padding:.5rem 0 0;margin-bottom:-.5rem;">
+        <button class="btn-ghost" style="font-size:.85rem;padding:.4rem .9rem;" onclick="showSection('feed',null)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><polyline points="15 18 9 12 15 6"/></svg>
+          Назад
+        </button>
+      </div>
       <div class="profile-banner banner-gradient-0" id="prof-banner">
         <button class="banner-change-btn" onclick="cycleBanner()">🎨 Сменить обложку</button>
       </div>
       <div class="profile-info-row">
         <div class="profile-avatar-wrap">
-          <div class="avatar" id="prof-avatar" style="width:96px;height:96px;font-size:2.2rem;"></div>
+          <div class="avatar" id="prof-avatar" style="width:96px;height:96px;font-size:2.2rem;overflow:hidden;cursor:pointer;" onclick="openEditModal()" title="Изменить фото"></div>
           <div class="profile-verified">✓</div>
         </div>
         <div class="profile-names">
@@ -432,15 +440,23 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
       </div>
       <div class="profile-interests" id="prof-interests"></div>
       <div class="profile-stats">
-        <div class="stat-item"><div class="stat-icon">📝</div><div class="stat-num" id="prof-posts">0</div><div class="stat-label">постов</div></div>
-        <div class="stat-item"><div class="stat-icon">👥</div><div class="stat-num" id="prof-friends">0</div><div class="stat-label">подписок</div></div>
-        <div class="stat-item"><div class="stat-icon">❤️</div><div class="stat-num" id="prof-likes">0</div><div class="stat-label">лайков</div></div>
+        <div class="stat-item"><div class="stat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="stat-num" id="prof-posts">0</div><div class="stat-label">постов</div></div>
+        <div class="stat-item"><div class="stat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-num" id="prof-friends">0</div><div class="stat-label">подписок</div></div>
+        <div class="stat-item"><div class="stat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div class="stat-num" id="prof-followers">0</div><div class="stat-label">подписчиков</div></div>
+        <div class="stat-item"><div class="stat-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div><div class="stat-num" id="prof-likes">0</div><div class="stat-label">лайков</div></div>
       </div>
       <div class="profile-posts-header">
         <div class="profile-posts-title">Публикации</div>
         <div class="profile-posts-count" id="prof-posts-badge">0 постов</div>
       </div>
       <div id="my-posts-container"></div>
+      <!-- Mobile logout — only own profile -->
+      <div id="prof-logout-row" style="padding:1.5rem 0 .5rem;text-align:center;">
+        <button class="btn-ghost" style="color:var(--danger);border-color:var(--danger);font-size:.88rem;" onclick="doLogout()">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          Выйти из аккаунта
+        </button>
+      </div>
     </div>
 
     <!-- FRIENDS -->
@@ -510,13 +526,27 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
 
   </div>
 
-  <!-- MOBILE NAV -->
   <nav class="mobile-nav">
-    <button class="mob-nav-btn active" onclick="showSection('feed',this)"><span class="mob-nav-icon">🌊</span><span>Лента</span><div class="mob-active-bar"></div></button>
-    <button class="mob-nav-btn" onclick="showSection('reels',this)"><span class="mob-nav-icon">▶️</span><span>Видео</span><div class="mob-active-bar"></div></button>
-    <button class="mob-nav-btn" onclick="showSection('games',this)"><span class="mob-nav-icon">🎮</span><span>Игры</span><div class="mob-active-bar"></div></button>
-    <button class="mob-nav-btn" onclick="showSection('messages',this)"><span class="mob-nav-icon">💬</span><span>Чат</span><div class="mob-active-bar"></div></button>
-    <button class="mob-nav-btn" onclick="showSection('profile',this)"><span class="mob-nav-icon">👤</span><span>Я</span><div class="mob-active-bar"></div></button>
+    <button class="mob-nav-btn active" onclick="showSection('feed',this)">
+      <span class="mob-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+      <span>Лента</span><div class="mob-active-bar"></div>
+    </button>
+    <button class="mob-nav-btn" onclick="showSection('reels',this)">
+      <span class="mob-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg></span>
+      <span>Видео</span><div class="mob-active-bar"></div>
+    </button>
+    <button class="mob-nav-btn" onclick="showSection('friends',this)">
+      <span class="mob-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+      <span>Друзья</span><div class="mob-active-bar"></div>
+    </button>
+    <button class="mob-nav-btn" onclick="showSection('messages',this)">
+      <span class="mob-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+      <span>Чат</span><div class="mob-active-bar"></div>
+    </button>
+    <button class="mob-nav-btn" onclick="showSection('profile',this)">
+      <span class="mob-nav-icon"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
+      <span>Я</span><div class="mob-active-bar"></div>
+    </button>
   </nav>
 </div>
 
@@ -525,6 +555,20 @@ h1,h2,h3,h4{font-family:'Unbounded',sans-serif;}
   <div class="modal-box">
     <h3 class="modal-title">Редактировать профиль</h3>
     <p class="modal-subtitle">Расскажи о себе</p>
+    <div class="modal-field">
+      <label>Фото профиля</label>
+      <div style="display:flex;align-items:center;gap:1rem;margin-top:.3rem;">
+        <div class="avatar" id="edit-avatar-preview" style="width:64px;height:64px;font-size:1.5rem;overflow:hidden;"></div>
+        <div>
+          <button class="btn-ghost" style="font-size:.8rem;padding:.4rem .9rem;" onclick="document.getElementById('avatar-file-input').click()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:middle;margin-right:4px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            Загрузить фото
+          </button>
+          <input type="file" id="avatar-file-input" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+          <div style="font-size:.72rem;color:var(--text3);margin-top:.3rem;">JPG, PNG — до 2МБ</div>
+        </div>
+      </div>
+    </div>
     <div class="modal-field"><label>Имя</label><input id="edit-name" type="text" placeholder="Как тебя зовут?"></div>
     <div class="modal-field"><label>О себе</label><textarea id="edit-bio" rows="3" placeholder="Чем занимаешься..."></textarea></div>
     <div class="modal-field"><label>Интересы (через запятую)</label><input id="edit-interests" type="text" placeholder="музыка, код..."></div>
@@ -645,7 +689,7 @@ async function enterApp() {
   allUsers = await api('GET','/api/users');
   updateSidebarUser();
   await renderFeed();
-  renderProfile();
+  renderProfile(me.id);
   renderFriends();
   await renderConvList();
   showSection('feed', document.querySelector('.sidebar .nav-btn'));
@@ -656,7 +700,16 @@ async function enterApp() {
 function updateSidebarUser() {
   if (!me) return;
   const ini = initials(me.name);
-  ['sb-avatar','cp-avatar','prof-avatar'].forEach(id => { const el=document.getElementById(id); if(el) el.textContent=ini; });
+  ['sb-avatar','cp-avatar','prof-avatar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (me.avatar_base64) {
+      el.innerHTML = `<img src="${me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+      el.innerHTML = '';
+      el.textContent = ini;
+    }
+  });
   document.getElementById('sb-name').textContent = me.name;
   document.getElementById('sb-handle').textContent = '@'+me.username;
 }
@@ -669,7 +722,7 @@ function showSection(name, btn) {
   document.getElementById('section-'+name).classList.add('active');
   document.querySelectorAll('.nav-btn,.mob-nav-btn').forEach(b=>b.classList.remove('active'));
   if (btn) btn.classList.add('active');
-  if (name==='profile') renderProfile();
+  if (name==='profile') renderProfile(me.id);
   if (name==='feed') renderFeed();
   if (name==='reels') renderReels();
   if (name==='messages') { renderConvList(); }
@@ -698,11 +751,14 @@ function postHTML(post) {
   const imgHtml = post.image_base64
     ? `<img class="post-image" src="${post.image_base64}" alt="" onclick="openImgViewer('${post.image_base64}')">`
     : '';
+  const avatarHtml = author.avatar_base64
+    ? `<img src="${author.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+    : ini;
   return `<div class="post-card" id="post-${post.id}">
     <div class="post-header">
-      <div class="avatar" style="width:40px;height:40px;font-size:.9rem">${ini}</div>
+      <div class="avatar" style="width:40px;height:40px;font-size:.9rem;cursor:pointer;overflow:hidden;" onclick="viewUserProfile(${author.id})">${avatarHtml}</div>
       <div class="post-meta">
-        <div class="post-author">${author.name}</div>
+        <div class="post-author" style="cursor:pointer;" onclick="viewUserProfile(${author.id})">${author.name}</div>
         <div class="post-time">@${author.username} · ${post.timeFormatted||''}</div>
       </div>
     </div>
@@ -780,36 +836,74 @@ async function createPost() {
 }
 
 // ══ PROFILE ══
-async function renderProfile() {
-  if (!me) return;
-  const ini = initials(me.name);
-  document.getElementById('prof-avatar').textContent = ini;
-  document.getElementById('prof-name').textContent = me.name;
-  document.getElementById('prof-handle').textContent = '@'+me.username;
-  document.getElementById('prof-bio').textContent = me.bio||'Расскажи о себе...';
-  document.getElementById('prof-joined').textContent = 'На Волне с '+(me.joined||'недавно');
+async function renderProfile(userId) {
+  const isOwn = !userId || userId === me.id;
+  const user = isOwn ? me : (allUsers.find(u=>u.id===userId)||null);
+  if (!user) return;
+  const ini = initials(user.name);
+  const avatarEl = document.getElementById('prof-avatar');
+  if (avatarEl) {
+    if (user.avatar_base64) {
+      avatarEl.innerHTML = `<img src="${user.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+      avatarEl.innerHTML = '';
+      avatarEl.textContent = ini;
+    }
+  }
+  document.getElementById('prof-name').textContent = user.name;
+  document.getElementById('prof-handle').textContent = '@'+user.username;
+  document.getElementById('prof-bio').textContent = user.bio||'Расскажи о себе...';
+  document.getElementById('prof-joined').textContent = 'На Волне с '+(user.joined||'недавно');
   const banner = document.getElementById('prof-banner');
-  if (banner) banner.className = 'profile-banner banner-gradient-'+(me.banner_color??0);
+  if (banner) banner.className = 'profile-banner banner-gradient-'+(user.banner_color??0);
   const interestsEl = document.getElementById('prof-interests');
-  if (interestsEl) interestsEl.innerHTML = (me.interests||[]).map(t=>`<div class="interest-tag">#${t}</div>`).join('');
+  if (interestsEl) interestsEl.innerHTML = (user.interests||[]).map(t=>`<div class="interest-tag">#${t}</div>`).join('');
+  // Show/hide edit button
+  const editBtn = document.querySelector('.profile-edit-btn');
+  if (editBtn) editBtn.style.display = isOwn ? '' : 'none';
+  const bannerBtn = document.querySelector('.banner-change-btn');
+  if (bannerBtn) bannerBtn.style.display = isOwn ? '' : 'none';
+  const logoutRow = document.getElementById('prof-logout-row');
+  if (logoutRow) logoutRow.style.display = isOwn ? '' : 'none';
+  const backBar = document.getElementById('prof-back-bar');
+  if (backBar) backBar.style.display = isOwn ? 'none' : '';
+  const avatarEl2 = document.getElementById('prof-avatar');
+  if (avatarEl2) avatarEl2.onclick = isOwn ? openEditModal : null;
+  if (avatarEl2) avatarEl2.title = isOwn ? 'Изменить фото' : '';
+  // Followers count = how many other users have this user in their following list
+  const followers = allUsers.filter(u=>u.id!==user.id&&(u.following||[]).includes(user.id)).length;
+  const follEl = document.getElementById('prof-followers');
+  if (follEl) follEl.textContent = followers;
   try {
-    const myPosts = await api('GET','/api/posts?userId='+me.id);
+    const myPosts = await api('GET','/api/posts?userId='+user.id);
     document.getElementById('prof-posts').textContent = myPosts.length;
-    document.getElementById('prof-friends').textContent = (me.following||[]).length;
+    document.getElementById('prof-friends').textContent = (user.following||[]).length;
     document.getElementById('prof-likes').textContent = myPosts.reduce((s,p)=>s+(p.likes||[]).length,0);
     const badge = document.getElementById('prof-posts-badge');
     if (badge) badge.textContent = myPosts.length+' '+(myPosts.length===1?'пост':myPosts.length<5?'поста':'постов');
     const c = document.getElementById('my-posts-container');
-    c.innerHTML = myPosts.length ? myPosts.map(p=>postHTML(p)).join('') : '<p style="color:var(--text3);padding:1rem;text-align:center">Ты ещё ничего не публиковал</p>';
+    c.innerHTML = myPosts.length ? myPosts.map(p=>postHTML(p)).join('') : `<p style="color:var(--text3);padding:1rem;text-align:center">${isOwn?'Ты ещё ничего не публиковал':'Нет публикаций'}</p>`;
     attachPostEvents();
   } catch {}
 }
+let _pendingAvatar = null;
 function openEditModal() {
   document.getElementById('edit-name').value = me.name;
   document.getElementById('edit-bio').value = me.bio||'';
   document.getElementById('edit-interests').value = (me.interests||[]).join(', ');
   _pendingBanner = me.banner_color??0;
+  _pendingAvatar = null;
   updateSwatchUI(_pendingBanner);
+  // Show current avatar in preview
+  const prev = document.getElementById('edit-avatar-preview');
+  if (prev) {
+    if (me.avatar_base64) {
+      prev.innerHTML = `<img src="${me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+      prev.innerHTML = '';
+      prev.textContent = initials(me.name);
+    }
+  }
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
@@ -826,7 +920,20 @@ async function saveProfile() {
   const interests = document.getElementById('edit-interests').value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,6);
   const updates = {name,bio,interests};
   if (_pendingBanner!==null) updates.banner_color = _pendingBanner;
+  if (_pendingAvatar) updates.avatar_base64 = _pendingAvatar;
   try { me = await api('PATCH','/api/me',updates); closeEditModal(); updateSidebarUser(); renderProfile(); toast('✅ Профиль обновлён'); } catch(ex) { toast('⚠️ '+ex.message); }
+}
+
+function handleAvatarUpload(e) {
+  const file = e.target.files[0]; if (!file) return;
+  if (file.size > 2*1024*1024) { toast('⚠️ Максимум 2МБ'); return; }
+  const reader = new FileReader();
+  reader.onload = ev => {
+    _pendingAvatar = ev.target.result;
+    const prev = document.getElementById('edit-avatar-preview');
+    if (prev) prev.innerHTML = `<img src="${_pendingAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+  };
+  reader.readAsDataURL(file);
 }
 
 // ══ FRIENDS ══
@@ -838,9 +945,12 @@ function renderFriends() {
   grid.innerHTML = others.map(u=>{
     const ini = initials(u.name);
     const following = (me.following||[]).includes(u.id);
+    const avatarHtml = u.avatar_base64
+      ? `<img src="${u.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
+      : ini;
     return `<div class="friend-card">
-      <div class="avatar" style="width:56px;height:56px;font-size:1.3rem;">${ini}</div>
-      <div class="friend-name">${u.name}</div>
+      <div class="avatar" style="width:56px;height:56px;font-size:1.3rem;cursor:pointer;overflow:hidden;" onclick="viewUserProfile(${u.id})">${avatarHtml}</div>
+      <div class="friend-name" style="cursor:pointer;" onclick="viewUserProfile(${u.id})">${u.name}</div>
       <div class="friend-handle">@${u.username}</div>
       <button class="friend-btn ${following?'following':''}" onclick="toggleFollow(${u.id})">${following?'✓ Подписан':'+ Подписаться'}</button>
     </div>`;
@@ -853,6 +963,15 @@ async function toggleFollow(uid) {
     renderFriends(); renderProfile(); renderFeed();
     toast(me.following.includes(uid)?'👥 Подписался!':'Отписался');
   } catch(ex) { toast('⚠️ '+ex.message); }
+}
+
+function viewUserProfile(uid) {
+  if (uid === me.id) { showSection('profile', null); return; }
+  // Update nav active state
+  document.querySelectorAll('.nav-btn,.mob-nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('section-profile').classList.add('active');
+  renderProfile(uid);
 }
 
 // ══ MESSAGES ══
