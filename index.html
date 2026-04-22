@@ -1186,101 +1186,150 @@ function closeGame() {
 let _gameRunning = false;
 
 // ── ЗМЕЙКА ──
-function startSnake(el) {
+async function startSnake(el) {
   _gameRunning = true;
   const S = 20, COLS = 20, ROWS = 20;
-  el.innerHTML = `<div style="text-align:center;margin-bottom:.5rem"><span id="snake-score" style="font-family:'Unbounded',sans-serif;font-size:1.1rem;color:var(--accent)">Счёт: 0</span></div><canvas id="snake-canvas" width="${S*COLS}" height="${S*ROWS}" style="border:2px solid var(--border2);border-radius:8px;display:block;margin:0 auto;max-width:100%;"></canvas><div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">WASD / стрелки · Мобильный: свайп</div>`;
+  let serverBest = 0;
+  try { const s = await api('GET','/api/scores'); serverBest = s.snake || 0; } catch {}
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+      <span id="snake-score" style="font-family:'Unbounded',sans-serif;font-size:1rem;color:var(--accent)">Счёт: 0</span>
+      <span style="font-family:'Unbounded',sans-serif;font-size:.8rem;color:#fbbf24">🏆 Рекорд: <span id="snake-best">${serverBest}</span></span>
+    </div>
+    <canvas id="snake-canvas" width="${S*COLS}" height="${S*ROWS}" style="border:2px solid var(--border2);border-radius:8px;display:block;margin:0 auto;max-width:100%;outline:none" tabindex="0"></canvas>
+    <div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">WASD / стрелки · R = рестарт · Свайп</div>`;
+
   const cvs = document.getElementById('snake-canvas');
   const ctx = cvs.getContext('2d');
-  let snake = [{x:10,y:10}], dir={x:1,y:0}, next={x:1,y:0}, food=rndFood(), score=0, dead=false;
-  function rndFood(){return {x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};}
+  cvs.focus();
+  let snake, dir, nextDir, food, score, dead, gameTimer;
+
+  function resetGame() {
+    snake=[{x:10,y:10},{x:9,y:10},{x:8,y:10}]; dir={x:1,y:0}; nextDir={x:1,y:0};
+    score=0; dead=false; food=spawnFood();
+    document.getElementById('snake-score').textContent='Счёт: 0';
+    clearTimeout(gameTimer); step();
+  }
+  function spawnFood(){let f;do{f={x:Math.floor(Math.random()*COLS),y:Math.floor(Math.random()*ROWS)};}while(snake.some(s=>s.x===f.x&&s.y===f.y));return f;}
   function draw(){
-    ctx.fillStyle='#0d0d12'; ctx.fillRect(0,0,S*COLS,S*ROWS);
-    // grid
+    ctx.fillStyle='#0d0d12';ctx.fillRect(0,0,S*COLS,S*ROWS);
     ctx.strokeStyle='rgba(255,255,255,0.03)';
-    for(let i=0;i<COLS;i++){ctx.beginPath();ctx.moveTo(i*S,0);ctx.lineTo(i*S,S*ROWS);ctx.stroke();}
-    for(let i=0;i<ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*S);ctx.lineTo(S*COLS,i*S);ctx.stroke();}
-    // food
-    ctx.fillStyle='#fc5c7d'; ctx.shadowBlur=10; ctx.shadowColor='#fc5c7d';
-    ctx.fillRect(food.x*S+2,food.y*S+2,S-4,S-4); ctx.shadowBlur=0;
-    // snake
+    for(let i=0;i<=COLS;i++){ctx.beginPath();ctx.moveTo(i*S,0);ctx.lineTo(i*S,S*ROWS);ctx.stroke();}
+    for(let i=0;i<=ROWS;i++){ctx.beginPath();ctx.moveTo(0,i*S);ctx.lineTo(S*COLS,i*S);ctx.stroke();}
+    ctx.fillStyle='#fc5c7d';ctx.shadowBlur=12;ctx.shadowColor='#fc5c7d';
+    ctx.beginPath();ctx.arc(food.x*S+S/2,food.y*S+S/2,S/2-2,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
     snake.forEach((seg,i)=>{
-      ctx.fillStyle = i===0 ? '#c084fc' : '#7c5cfc';
-      if(i===0){ctx.shadowBlur=12;ctx.shadowColor='#c084fc';}
-      ctx.fillRect(seg.x*S+1,seg.y*S+1,S-2,S-2); ctx.shadowBlur=0;
+      ctx.fillStyle=i===0?'#c084fc':`hsl(${260+i*2},70%,${60-i*0.5}%)`;
+      if(i===0){ctx.shadowBlur=14;ctx.shadowColor='#c084fc';}
+      ctx.fillRect(seg.x*S+1,seg.y*S+1,S-2,S-2);ctx.shadowBlur=0;
     });
-    if(dead){ctx.fillStyle='rgba(0,0,0,.6)';ctx.fillRect(0,0,S*COLS,S*ROWS);ctx.fillStyle='#fff';ctx.font='bold 22px Unbounded,sans-serif';ctx.textAlign='center';ctx.fillText('GAME OVER',S*COLS/2,S*ROWS/2-10);ctx.font='14px Manrope,sans-serif';ctx.fillText('Счёт: '+score,S*COLS/2,S*ROWS/2+20);ctx.fillText('Нажми R для рестарта',S*COLS/2,S*ROWS/2+42);}
+    if(dead){
+      const b=document.getElementById('snake-best')?.textContent||serverBest;
+      ctx.fillStyle='rgba(0,0,0,.75)';ctx.fillRect(0,0,S*COLS,S*ROWS);
+      ctx.fillStyle='#fff';ctx.textAlign='center';
+      ctx.font='bold 22px Unbounded,sans-serif';ctx.fillText('GAME OVER',S*COLS/2,S*ROWS/2-30);
+      ctx.font='15px Manrope,sans-serif';ctx.fillStyle='var(--accent2)';ctx.fillText('Счёт: '+score,S*COLS/2,S*ROWS/2+5);
+      ctx.fillStyle='#fbbf24';ctx.fillText('Рекорд: '+b,S*COLS/2,S*ROWS/2+28);
+      ctx.fillStyle='var(--text3)';ctx.fillText('Нажми R для рестарта',S*COLS/2,S*ROWS/2+54);
+    }
+  }
+  async function saveScore(){
+    try{const r=await api('POST',`/api/scores?game=snake&score=${score}`);if(r.best!==undefined){serverBest=r.best;const e=document.getElementById('snake-best');if(e)e.textContent=serverBest;}}catch{}
   }
   function step(){
-    if(!_gameRunning||dead) return;
-    dir=next;
+    if(!_gameRunning||dead)return;
+    dir=nextDir;
     const head={x:(snake[0].x+dir.x+COLS)%COLS,y:(snake[0].y+dir.y+ROWS)%ROWS};
-    if(snake.some(s=>s.x===head.x&&s.y===head.y)){dead=true;draw();return;}
+    if(snake.slice(0,snake.length-1).some(s=>s.x===head.x&&s.y===head.y)){dead=true;saveScore();draw();return;}
     snake.unshift(head);
-    if(head.x===food.x&&head.y===food.y){score++;document.getElementById('snake-score').textContent='Счёт: '+score;food=rndFood();}
+    if(head.x===food.x&&head.y===food.y){score++;document.getElementById('snake-score').textContent='Счёт: '+score;food=spawnFood();}
     else snake.pop();
     draw();
-    setTimeout(step, Math.max(80,150-score*3));
+    gameTimer=setTimeout(step,Math.max(75,150-score*4));
   }
-  document.addEventListener('keydown',function snakeKey(e){
-    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',snakeKey);return;}
-    if(e.key==='r'||e.key==='R'){dead=false;snake=[{x:10,y:10}];dir={x:1,y:0};next={x:1,y:0};food=rndFood();score=0;document.getElementById('snake-score').textContent='Счёт: 0';step();return;}
-    if(e.key==='ArrowUp'||e.key==='w'){if(dir.y!==1)next={x:0,y:-1};}
-    else if(e.key==='ArrowDown'||e.key==='s'){if(dir.y!==-1)next={x:0,y:1};}
-    else if(e.key==='ArrowLeft'||e.key==='a'){if(dir.x!==1)next={x:-1,y:0};}
-    else if(e.key==='ArrowRight'||e.key==='d'){if(dir.x!==-1)next={x:1,y:0};}
+  cvs.addEventListener('keydown',e=>{
+    e.preventDefault();
+    if(e.key==='r'||e.key==='R'){resetGame();return;}
+    if((e.key==='ArrowUp'||e.key==='w'||e.key==='W')&&dir.y!==1)nextDir={x:0,y:-1};
+    if((e.key==='ArrowDown'||e.key==='s'||e.key==='S')&&dir.y!==-1)nextDir={x:0,y:1};
+    if((e.key==='ArrowLeft'||e.key==='a'||e.key==='A')&&dir.x!==1)nextDir={x:-1,y:0};
+    if((e.key==='ArrowRight'||e.key==='d'||e.key==='D')&&dir.x!==-1)nextDir={x:1,y:0};
   });
-  // свайп
+  const snakeKey=e=>{
+    if(!_gameRunning){document.removeEventListener('keydown',snakeKey);return;}
+    if(document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+    if(e.key==='r'||e.key==='R'){resetGame();return;}
+    if((e.key==='ArrowUp'||e.key==='w'||e.key==='W')&&dir.y!==1){e.preventDefault();nextDir={x:0,y:-1};}
+    if((e.key==='ArrowDown'||e.key==='s'||e.key==='S')&&dir.y!==-1){e.preventDefault();nextDir={x:0,y:1};}
+    if((e.key==='ArrowLeft'||e.key==='a'||e.key==='A')&&dir.x!==1){e.preventDefault();nextDir={x:-1,y:0};}
+    if((e.key==='ArrowRight'||e.key==='d'||e.key==='D')&&dir.x!==-1){e.preventDefault();nextDir={x:1,y:0};}
+  };
+  document.addEventListener('keydown',snakeKey);
   let tx=0,ty=0;
   cvs.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
   cvs.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
-    if(Math.abs(dx)>Math.abs(dy)){if(dx>0&&dir.x!==-1)next={x:1,y:0};else if(dx<0&&dir.x!==1)next={x:-1,y:0};}
-    else{if(dy>0&&dir.y!==-1)next={x:0,y:1};else if(dy<0&&dir.y!==1)next={x:0,y:-1};}
+    if(Math.abs(dx)>Math.abs(dy)){if(dx>20&&dir.x!==-1)nextDir={x:1,y:0};else if(dx<-20&&dir.x!==1)nextDir={x:-1,y:0};}
+    else{if(dy>20&&dir.y!==-1)nextDir={x:0,y:1};else if(dy<-20&&dir.y!==1)nextDir={x:0,y:-1};}
   },{passive:true});
-  step();
+  resetGame();
 }
-
 // ── 2048 ──
-function start2048(el) {
+async function start2048(el) {
   _gameRunning = true;
-  let board=Array(4).fill(null).map(()=>Array(4).fill(0)), score=0;
+  let board, score, serverBest = 0;
+  try { const s = await api('GET','/api/scores'); serverBest = s['2048'] || 0; } catch {}
   const COLORS={'0':'#1e1e2a','2':'#3a3a5c','4':'#4a3a7c','8':'#6a3afc','16':'#7c5cfc','32':'#9c5cfc','64':'#c084fc','128':'#f472b6','256':'#fc5c7d','512':'#fbbf24','1024':'#4ade80','2048':'#00ffff'};
-  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem"><span style="font-family:'Unbounded',sans-serif;color:var(--accent);font-size:1rem">2048</span><span id="g2048-score" style="font-family:'Unbounded',sans-serif;color:var(--accent2)">0</span></div><div id="g2048-board" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--surface3);padding:6px;border-radius:10px;width:100%;max-width:340px;margin:0 auto;aspect-ratio:1"></div><div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">Стрелки / WASD · Свайп на мобильном</div>`;
-  function addRnd(){const empty=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!board[r][c])empty.push({r,c});if(!empty.length)return;const{r,c}=empty[Math.floor(Math.random()*empty.length)];board[r][c]=Math.random()<0.9?2:4;}
+  el.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem">
+      <span style="font-family:'Unbounded',sans-serif;color:var(--accent);font-size:1rem">2048</span>
+      <div style="display:flex;gap:1rem;align-items:center">
+        <div style="text-align:center"><div style="font-size:.65rem;color:var(--text3);text-transform:uppercase">Счёт</div><div id="g2048-score" style="font-family:'Unbounded',sans-serif;color:var(--accent2);font-size:1rem">0</div></div>
+        <div style="text-align:center"><div style="font-size:.65rem;color:var(--text3);text-transform:uppercase">🏆 Рекорд</div><div id="g2048-best" style="font-family:'Unbounded',sans-serif;color:#fbbf24;font-size:1rem">${serverBest}</div></div>
+        <button onclick="window._2048restart()" style="background:var(--surface2);border:1px solid var(--border2);border-radius:8px;color:var(--text2);padding:.3rem .8rem;cursor:pointer;font-size:.8rem">Заново</button>
+      </div>
+    </div>
+    <div id="g2048-board" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--surface3);padding:6px;border-radius:10px;width:100%;max-width:340px;margin:0 auto"></div>
+    <div style="margin-top:.75rem;text-align:center;color:var(--text3);font-size:.8rem">Стрелки / WASD · Свайп на мобильном</div>`;
+  async function saveScore2048(){
+    try{const r=await api('POST',`/api/scores?game=2048&score=${score}`);if(r.best!==undefined){serverBest=r.best;const e=document.getElementById('g2048-best');if(e)e.textContent=serverBest;}}catch{}
+  }
+  function initBoard(){board=Array(4).fill(null).map(()=>Array(4).fill(0));score=0;addRnd();addRnd();render();}
+  window._2048restart=initBoard;
+  function addRnd(){const e=[];for(let r=0;r<4;r++)for(let c=0;c<4;c++)if(!board[r][c])e.push({r,c});if(!e.length)return;const{r,c}=e[Math.floor(Math.random()*e.length)];board[r][c]=Math.random()<0.9?2:4;}
   function render(){
     const b=document.getElementById('g2048-board');if(!b)return;
-    b.innerHTML=board.flat().map(v=>`<div style="background:${COLORS[v]||'#ff6b6b'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:${v>999?'1rem':v>99?'1.2rem':'1.4rem'};font-weight:700;color:${v>4?'#fff':'var(--text2)'};aspect-ratio:1">${v||''}</div>`).join('');
+    b.innerHTML=board.flat().map(v=>`<div style="background:${COLORS[String(v)]||'#ff6b6b'};border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:'Unbounded',sans-serif;font-size:${v>999?'.9rem':v>99?'1.1rem':'1.3rem'};font-weight:700;color:${v>4?'#fff':'var(--text2)'};padding:0;aspect-ratio:1/1">${v||''}</div>`).join('');
     document.getElementById('g2048-score').textContent=score;
   }
   function slide(row){const r=row.filter(x=>x);for(let i=0;i<r.length-1;i++){if(r[i]===r[i+1]){r[i]*=2;score+=r[i];r.splice(i+1,1);}}while(r.length<4)r.push(0);return r;}
-  function move(dir){
-    let moved=false;
+  function move(d){
     const old=JSON.stringify(board);
-    if(dir==='left')board=board.map(r=>slide(r));
-    else if(dir==='right')board=board.map(r=>slide(r.reverse()).reverse());
-    else if(dir==='up'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]);col=slide(col);board.forEach((r,i)=>r[c]=col[i]);}}
-    else if(dir==='down'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]).reverse();col=slide(col).reverse();board.forEach((r,i)=>r[c]=col[i]);}}
-    if(JSON.stringify(board)!==old){moved=true;addRnd();}
-    render();
-    if(board.flat().includes(2048)){setTimeout(()=>alert('🎉 Ты выиграл! Счёт: '+score),50);}
+    if(d==='left')board=board.map(r=>slide([...r]));
+    else if(d==='right')board=board.map(r=>slide([...r].reverse()).reverse());
+    else if(d==='up'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]);col=slide(col);board.forEach((r,i)=>r[c]=col[i]);}}
+    else if(d==='down'){for(let c=0;c<4;c++){let col=board.map(r=>r[c]).reverse();col=slide(col).reverse();board.forEach((r,i)=>r[c]=col[i]);}}
+    if(JSON.stringify(board)!==old){addRnd();render();saveScore2048();if(board.flat().includes(2048))setTimeout(()=>toast('🎉 2048! Счёт: '+score),100);}
   }
-  addRnd();addRnd();render();
-  document.addEventListener('keydown',function g2048Key(e){
-    if(!document.getElementById('game-modal')?.classList.contains('open')){document.removeEventListener('keydown',g2048Key);return;}
-    if(e.key==='ArrowLeft'||e.key==='a'){e.preventDefault();move('left');}
-    else if(e.key==='ArrowRight'||e.key==='d'){e.preventDefault();move('right');}
-    else if(e.key==='ArrowUp'||e.key==='w'){e.preventDefault();move('up');}
-    else if(e.key==='ArrowDown'||e.key==='s'){e.preventDefault();move('down');}
-  });
+  initBoard();
+  const key2048=e=>{
+    if(!_gameRunning){document.removeEventListener('keydown',key2048);return;}
+    if(document.activeElement&&['INPUT','TEXTAREA'].includes(document.activeElement.tagName))return;
+    if(e.key==='ArrowLeft'||e.key==='a'||e.key==='A'){e.preventDefault();move('left');}
+    else if(e.key==='ArrowRight'||e.key==='d'||e.key==='D'){e.preventDefault();move('right');}
+    else if(e.key==='ArrowUp'||e.key==='w'||e.key==='W'){e.preventDefault();move('up');}
+    else if(e.key==='ArrowDown'||e.key==='s'||e.key==='S'){e.preventDefault();move('down');}
+  };
+  document.addEventListener('keydown',key2048);
   let tx=0,ty=0;
   el.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
   el.addEventListener('touchend',e=>{
     const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
-    if(Math.abs(dx)>Math.abs(dy)){move(dx>0?'right':'left');}else{move(dy>0?'down':'up');}
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>20)move(dx>0?'right':'left');
+    else if(Math.abs(dy)>20)move(dy>0?'down':'up');
   },{passive:true});
 }
-
 // ── ТЕТРИС ──
 function startTetris(el) {
   _gameRunning = true;
