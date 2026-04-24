@@ -102,16 +102,18 @@ export default async function handler(req, res) {
 
   // ── PATCH /api/me ──
   if (url === '/me' && method === 'PATCH') {
-    const { name, bio, interests, banner_color, avatar_base64 } = body;
+    const { name, bio, interests, banner_color, avatar_base64, liked_tracks, playlist } = body;
     const updates = {};
     if (name) updates.name = name;
     if (bio !== undefined) updates.bio = bio;
     if (interests !== undefined) updates.interests = interests;
     if (banner_color !== undefined) updates.banner_color = banner_color;
     if (avatar_base64 !== undefined) updates.avatar_base64 = avatar_base64;
+    if (liked_tracks !== undefined) updates.liked_tracks = liked_tracks;
+    if (playlist !== undefined) updates.playlist = playlist;
     const { data } = await supabase
       .from('users').update(updates).eq('id', authUser.id)
-      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64').single();
+      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64, liked_tracks, playlist').single();
     return res.json(data);
   }
 
