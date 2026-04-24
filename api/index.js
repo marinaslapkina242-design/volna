@@ -470,3 +470,12 @@ export default async function handler(req, res) {
 
   return res.status(404).json({ error: 'Не найдено' });
 }
+
+// Увеличиваем лимит тела запроса до 50MB для загрузки видео
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+};
