@@ -95,32 +95,33 @@ export default async function handler(req, res) {
   if (url === '/me' && method === 'GET') {
     const { data } = await supabase
       .from('users')
-      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64')
+      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_url, avatar_base64, liked_tracks, playlist')
       .eq('id', authUser.id).single();
     return res.json(data);
   }
 
   // ── PATCH /api/me ──
   if (url === '/me' && method === 'PATCH') {
-    const { name, bio, interests, banner_color, avatar_base64, liked_tracks, playlist } = body;
+    const { name, bio, interests, banner_color, avatar_base64, avatar_url, liked_tracks, playlist } = body;
     const updates = {};
     if (name) updates.name = name;
     if (bio !== undefined) updates.bio = bio;
     if (interests !== undefined) updates.interests = interests;
     if (banner_color !== undefined) updates.banner_color = banner_color;
     if (avatar_base64 !== undefined) updates.avatar_base64 = avatar_base64;
+    if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (liked_tracks !== undefined) updates.liked_tracks = liked_tracks;
     if (playlist !== undefined) updates.playlist = playlist;
     const { data } = await supabase
       .from('users').update(updates).eq('id', authUser.id)
-      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_base64, liked_tracks, playlist').single();
+      .select('id, username, name, bio, joined, interests, banner_color, following, avatar_url, avatar_base64, liked_tracks, playlist').single();
     return res.json(data);
   }
 
   // ── GET /api/users ──
   if (url === '/users' && method === 'GET') {
     const { data } = await supabase
-      .from('users').select('id, username, name, bio, following, avatar_base64, banner_color, joined, interests');
+      .from('users').select('id, username, name, bio, following, avatar_url, avatar_base64, banner_color, joined, interests');
     return res.json(data || []);
   }
 
@@ -164,8 +165,8 @@ export default async function handler(req, res) {
 
   // ── POST /api/posts ──
   if (url === '/posts' && method === 'POST') {
-    const { text, image_base64 } = body;
-    if (!text?.trim() && !image_base64)
+    const { text, image_url, image_base64 } = body;
+    if (!text?.trim() && !image_url && !image_base64)
       return res.status(400).json({ error: 'Текст или фото обязательны' });
     const { data, error } = await supabase
       .from('posts')
@@ -174,6 +175,7 @@ export default async function handler(req, res) {
         text: text?.trim() || '',
         likes: [],
         comments: [],
+        image_url: image_url || null,
         image_base64: image_base64 || null
       })
       .select().single();
@@ -276,7 +278,7 @@ export default async function handler(req, res) {
         userId: otherId,
         name: other?.name || '',
         username: other?.username || '',
-        lastMessage: last?.text || (last?.image_base64 ? '📷 Фото' : ''),
+        lastMessage: last?.text || (last?.image_url || last?.image_base64 ? '📷 Фото' : ''),
         lastTime: last?.time || ''
       };
     }));
@@ -339,14 +341,14 @@ export default async function handler(req, res) {
 
   // ── POST /api/reels ── загрузить видео
   if (url === '/reels' && method === 'POST') {
-    const { video_base64, caption, thumbnail_base64 } = body;
-    if (!video_base64) return res.status(400).json({ error: 'Видео обязательно' });
+    const { video_url, video_base64, caption } = body;
+    if (!video_url && !video_base64) return res.status(400).json({ error: 'Видео обязательно' });
     const { data, error } = await supabase
       .from('reels')
       .insert({
         user_id: authUser.id,
-        video_base64,
-        thumbnail_base64: thumbnail_base64 || null,
+        video_url: video_url || null,
+        video_base64: video_base64 || null,
         caption: caption?.trim() || '',
         likes: [],
         views: 0
