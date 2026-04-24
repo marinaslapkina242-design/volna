@@ -853,9 +853,13 @@ async function enterApp() {
   updateSidebarUser();
   // Загружаем музыкальные данные с сервера
   try {
-    if (me.liked_tracks) _likedTracks = JSON.parse(me.liked_tracks);
-    if (me.playlist) _playlist = JSON.parse(me.playlist);
-  } catch {}
+    if (me.liked_tracks) {
+      _likedTracks = Array.isArray(me.liked_tracks) ? me.liked_tracks : JSON.parse(me.liked_tracks);
+    }
+    if (me.playlist) {
+      _playlist = Array.isArray(me.playlist) ? me.playlist : JSON.parse(me.playlist);
+    }
+  } catch { _likedTracks = []; _playlist = []; }
   await renderFeed();
   renderProfile(me.id);
   renderFriends();
@@ -1582,8 +1586,15 @@ document.getElementById('upload-reel-modal').addEventListener('click',function(e
 // ══ AUTO LOGIN ══
 (async()=>{
   if (!token) return;
-  try { me = await api('GET','/api/me'); await enterApp(); }
-  catch { localStorage.removeItem('volna_token'); token=null; }
+  try {
+    me = await api('GET','/api/me');
+    if (!me || !me.id) throw new Error('no user');
+    await enterApp();
+  } catch(ex) {
+    console.warn('Auto-login failed:', ex.message);
+    localStorage.removeItem('volna_token');
+    token = null;
+  }
 })();
 
 // ══ ВРЕМЯ ══
@@ -1990,7 +2001,7 @@ async function toggleLikeTrack(t) {
   const idx = _likedTracks.findIndex(l => l.id === t.id);
   if (idx === -1) { _likedTracks.unshift(t); toast('❤️ В любимые'); }
   else { _likedTracks.splice(idx, 1); toast('Убрано из любимых'); }
-  try { await api('PATCH', '/api/me', { liked_tracks: JSON.stringify(_likedTracks) }); } catch {}
+  try { await api('PATCH', '/api/me', { liked_tracks: _likedTracks }); } catch {}
   refreshTrackList();
 }
 
@@ -1998,7 +2009,7 @@ async function togglePlaylist(t) {
   const idx = _playlist.findIndex(p => p.id === t.id);
   if (idx === -1) { _playlist.push(t); toast('📋 В плейлист'); }
   else { _playlist.splice(idx, 1); toast('Убрано из плейлиста'); }
-  try { await api('PATCH', '/api/me', { playlist: JSON.stringify(_playlist) }); } catch {}
+  try { await api('PATCH', '/api/me', { playlist: _playlist }); } catch {}
   refreshTrackList();
 }
 
