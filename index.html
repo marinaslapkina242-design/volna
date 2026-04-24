@@ -752,14 +752,34 @@ html,body{height:100%;}
 
 <script>
 const API = '';
+// Supabase Storage — загружаем файлы напрямую из браузера
+const SUPABASE_URL = 'https://nldqqqggetegdlgfecma.supabase.co';
+
+async function uploadToStorage(file, folder) {
+  const ext = file.name.split('.').pop() || 'bin';
+  const path = folder + '/' + Date.now() + '_' + Math.random().toString(36).slice(2) + '.' + ext;
+  const r = await fetch(`${SUPABASE_URL}/storage/v1/object/media/${path}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': file.type || 'application/octet-stream',
+      'x-upsert': 'true'
+    },
+    body: file
+  });
+  if (!r.ok) throw new Error('Ошибка загрузки файла');
+  return `${SUPABASE_URL}/storage/v1/object/public/media/${path}`;
+}
+
 let token = localStorage.getItem('volna_token');
 let me = null;
 let allUsers = [];
 let currentChat = null;
 let isMobile = () => window.innerWidth <= 768;
-let _postPhotoBase64 = null;
-let _chatImgBase64 = null;
-let _reelVideoBase64 = null;
+let _postPhotoFile = null;
+let _chatImgFile = null;
+let _reelVideoFile = null;
+let _pendingAvatarFile = null;
 let _pendingBanner = null;
 let typingTimer = null;
 let heartbeatInterval = null;
@@ -845,8 +865,8 @@ function updateSidebarUser() {
   ['sb-avatar','cp-avatar','prof-avatar'].forEach(id => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (me.avatar_base64) {
-      el.innerHTML = `<img src="${me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    if (me.avatar_url || me.avatar_base64) {
+      el.innerHTML = `<img src="${me.avatar_url || me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
     } else {
       el.innerHTML = '';
       el.textContent = ini;
@@ -956,20 +976,22 @@ async function addComment(pid) {
 // Фото в посте
 function handlePostPhoto(e) {
   const file = e.target.files[0]; if (!file) return;
-  if (file.size > 3*1024*1024) { toast('⚠️ Максимум 3МБ'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    _postPhotoBase64 = ev.target.result;
-    document.getElementById('post-photo-preview').innerHTML = `<div class="photo-preview"><img src="${_postPhotoBase64}"><button class="photo-preview-del" onclick="clearPostPhoto()">✕</button></div>`;
-  };
-  reader.readAsDataURL(file);
+  if (file.size > 10*1024*1024) { toast('⚠️ Максимум 10МБ'); return; }
+  _postPhotoFile = file;
+  const url = URL.createObjectURL(file);
+  document.getElementById('post-photo-preview').innerHTML = `<div class="photo-preview"><img src="${url}"><button class="photo-preview-del" onclick="clearPostPhoto()">✕</button></div>`;
 }
-function clearPostPhoto() { _postPhotoBase64 = null; document.getElementById('post-photo-preview').innerHTML=''; document.getElementById('post-photo-input').value=''; }
+function clearPostPhoto() { _postPhotoFile = null; document.getElementById('post-photo-preview').innerHTML=''; document.getElementById('post-photo-input').value=''; }
 async function createPost() {
   const txt = document.getElementById('post-text').value.trim();
-  if (!txt && !_postPhotoBase64) return;
+  if (!txt && !_postPhotoFile) return;
   try {
-    await api('POST','/api/posts',{text:txt, image_base64:_postPhotoBase64});
+    let image_url = null;
+    if (_postPhotoFile) {
+      toast('⏳ Загружаем фото...');
+      image_url = await uploadToStorage(_postPhotoFile, 'posts');
+    }
+    await api('POST','/api/posts',{text:txt, image_url});
     document.getElementById('post-text').value='';
     clearPostPhoto();
     await renderFeed();
@@ -985,8 +1007,8 @@ async function renderProfile(userId) {
   const ini = initials(user.name);
   const avatarEl = document.getElementById('prof-avatar');
   if (avatarEl) {
-    if (user.avatar_base64) {
-      avatarEl.innerHTML = `<img src="${user.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    if (user.avatar_url || user.avatar_base64) {
+      avatarEl.innerHTML = `<img src="${user.avatar_url || user.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
     } else {
       avatarEl.innerHTML = '';
       avatarEl.textContent = ini;
@@ -1034,13 +1056,13 @@ function openEditModal() {
   document.getElementById('edit-bio').value = me.bio||'';
   document.getElementById('edit-interests').value = (me.interests||[]).join(', ');
   _pendingBanner = me.banner_color??0;
-  _pendingAvatar = null;
+  _pendingAvatarFile = null;
   updateSwatchUI(_pendingBanner);
   // Show current avatar in preview
   const prev = document.getElementById('edit-avatar-preview');
   if (prev) {
-    if (me.avatar_base64) {
-      prev.innerHTML = `<img src="${me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    if (me.avatar_url || me.avatar_base64) {
+      prev.innerHTML = `<img src="${me.avatar_url || me.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
     } else {
       prev.innerHTML = '';
       prev.textContent = initials(me.name);
@@ -1062,20 +1084,21 @@ async function saveProfile() {
   const interests = document.getElementById('edit-interests').value.split(',').map(s=>s.trim()).filter(Boolean).slice(0,6);
   const updates = {name,bio,interests};
   if (_pendingBanner!==null) updates.banner_color = _pendingBanner;
-  if (_pendingAvatar) updates.avatar_base64 = _pendingAvatar;
+  if (_pendingAvatarFile) {
+    toast('⏳ Загружаем аватар...');
+    const avatarUrl = await uploadToStorage(_pendingAvatarFile, 'avatars');
+    updates.avatar_url = avatarUrl;
+  }
   try { me = await api('PATCH','/api/me',updates); closeEditModal(); updateSidebarUser(); renderProfile(); toast('✅ Профиль обновлён'); } catch(ex) { toast('⚠️ '+ex.message); }
 }
 
 function handleAvatarUpload(e) {
   const file = e.target.files[0]; if (!file) return;
-  if (file.size > 2*1024*1024) { toast('⚠️ Максимум 2МБ'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    _pendingAvatar = ev.target.result;
-    const prev = document.getElementById('edit-avatar-preview');
-    if (prev) prev.innerHTML = `<img src="${_pendingAvatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
-  };
-  reader.readAsDataURL(file);
+  if (file.size > 5*1024*1024) { toast('⚠️ Максимум 5МБ'); return; }
+  _pendingAvatarFile = file;
+  const url = URL.createObjectURL(file);
+  const prev = document.getElementById('edit-avatar-preview');
+  if (prev) prev.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
 }
 
 // ══ FRIENDS ══
@@ -1231,9 +1254,8 @@ function msgBubbleHTML(m, idx) {
       <div class="msg-bubble"><span class="msg-deleted">Сообщение удалено</span></div>
     </div>`;
   }
-  const imgHtml = m.image_base64
-    ? `<img src="${m.image_base64}" onclick="openImgViewer('${m.image_base64}')">`
-    : '';
+  const msgImgSrc = m.image_url || m.image_base64 || null;
+  const imgHtml = msgImgSrc ? `<img src="${msgImgSrc}" onclick="openImgViewer('${msgImgSrc}')">` : '';
   const editedMark = m.edited ? '<span class="msg-edited">· изм.</span>' : '';
   const reactionsHtml = buildReactionsHTML(m, mid, midx);
   return `<div class="msg-wrap ${isMe?'me':'them'}" data-mid="${mid}" data-midx="${midx}">
@@ -1391,24 +1413,26 @@ function sendTyping() {
 
 function handleChatImg(e) {
   const file = e.target.files[0]; if (!file) return;
-  if (file.size > 2*1024*1024) { toast('⚠️ Максимум 2МБ'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    _chatImgBase64 = ev.target.result;
-    const wrap = document.getElementById('chat-img-preview-wrap');
-    if (wrap) wrap.innerHTML = `<div class="chat-img-preview"><img src="${_chatImgBase64}"><button onclick="clearChatImg()">✕</button></div>`;
-  };
-  reader.readAsDataURL(file);
+  if (file.size > 10*1024*1024) { toast('⚠️ Максимум 10МБ'); return; }
+  _chatImgFile = file;
+  const url = URL.createObjectURL(file);
+  const wrap = document.getElementById('chat-img-preview-wrap');
+  if (wrap) wrap.innerHTML = `<div class="chat-img-preview"><img src="${url}"><button onclick="clearChatImg()">✕</button></div>`;
 }
-function clearChatImg() { _chatImgBase64 = null; const w=document.getElementById('chat-img-preview-wrap'); if(w) w.innerHTML=''; document.getElementById('chat-img-input').value=''; }
+function clearChatImg() { _chatImgFile = null; const w=document.getElementById('chat-img-preview-wrap'); if(w) w.innerHTML=''; document.getElementById('chat-img-input').value=''; }
 
 async function sendMsg() {
   const inputEl = document.getElementById('chat-input');
   const text = inputEl?.innerText?.trim() || '';
-  if (!text && !_chatImgBase64) return;
+  if (!text && !_chatImgFile) return;
   if (!currentChat) return;
   try {
-    const msg = await api('POST','/api/messages?userId='+currentChat, {text, image_base64: _chatImgBase64});
+    let image_url = null;
+    if (_chatImgFile) {
+      toast('⏳ Загружаем фото...');
+      image_url = await uploadToStorage(_chatImgFile, 'messages');
+    }
+    const msg = await api('POST','/api/messages?userId='+currentChat, {text, image_url});
     if (inputEl) inputEl.innerText = '';
     clearChatImg();
     const container = document.getElementById('chat-msgs');
@@ -1457,7 +1481,7 @@ function reelHTML(r) {
   const liked = (r.likes||[]).includes(me.id);
   const following = (me.following||[]).includes(r.user_id);
   return `<div class="reel-item" data-id="${r.id}">
-    <video class="reel-video" src="${r.video_base64}" loop playsinline preload="none" muted></video>
+    <video class="reel-video" src="${r.video_url || r.video_base64}" loop playsinline preload="none" muted></video>
     <div class="reel-overlay"></div>
     <div class="reel-info">
       <div class="reel-author">
@@ -1505,27 +1529,25 @@ async function reelFollow(uid, btn) {
 function shareReel() { navigator.clipboard?.writeText(location.href); toast('🔗 Скопировано!'); }
 
 // Upload reel
-function openUploadReel() { _reelVideoBase64 = null; document.getElementById('upload-reel-modal').classList.add('open'); }
-function closeUploadReel() { document.getElementById('upload-reel-modal').classList.remove('open'); _reelVideoBase64 = null; document.getElementById('reel-video-input').value=''; document.getElementById('upload-zone-text').innerHTML='Нажми чтобы выбрать видео<br><span style="font-size:.78rem;color:var(--text3)">MP4, до 10MB</span>'; }
+function openUploadReel() { _reelVideoFile = null; document.getElementById('upload-reel-modal').classList.add('open'); }
+function closeUploadReel() { document.getElementById('upload-reel-modal').classList.remove('open'); _reelVideoFile = null; document.getElementById('reel-video-input').value=''; document.getElementById('upload-zone-text').innerHTML='Нажми чтобы выбрать видео<br><span style="font-size:.78rem;color:var(--text3)">MP4, до 50MB</span>'; }
 
 function handleReelVideo(e) {
   const file = e.target.files[0]; if (!file) return;
-  if (file.size > 10*1024*1024) { toast('⚠️ Максимум 10МБ'); return; }
-  const reader = new FileReader();
-  reader.onload = ev => {
-    _reelVideoBase64 = ev.target.result;
-    document.getElementById('upload-zone-text').innerHTML = `✅ ${file.name}`;
-  };
-  reader.readAsDataURL(file);
+  if (file.size > 50*1024*1024) { toast('⚠️ Максимум 50МБ'); return; }
+  _reelVideoFile = file;
+  document.getElementById('upload-zone-text').innerHTML = `✅ ${file.name}`;
 }
 
 async function uploadReel() {
-  if (!_reelVideoBase64) { toast('⚠️ Выбери видео'); return; }
+  if (!_reelVideoFile) { toast('⚠️ Выбери видео'); return; }
   const caption = document.getElementById('reel-caption').value.trim();
   const btn = document.getElementById('upload-reel-btn');
   btn.disabled = true; btn.textContent = 'Загружаем...';
   try {
-    await api('POST','/api/reels',{video_base64:_reelVideoBase64, caption});
+    toast('⏳ Загружаем видео в Storage...');
+    const video_url = await uploadToStorage(_reelVideoFile, 'reels');
+    await api('POST','/api/reels',{video_url, caption});
     closeUploadReel();
     toast('🎬 Видео опубликовано!');
     renderReels();
