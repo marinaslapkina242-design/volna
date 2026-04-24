@@ -2,8 +2,8 @@
   "version": 2,
   "functions": {
     "api/index.js": {
-      "memory": 512,
-      "maxDuration": 10
+      "memory": 1024,
+      "maxDuration": 60
     }
   },
   "rewrites": [
