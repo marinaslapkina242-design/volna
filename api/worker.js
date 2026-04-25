@@ -1,65 +1,12 @@
-function sb(env) {
-  const url = env.SUPABASE_URL;
-  const key = env.SUPABASE_SERVICE_KEY;
-  const headers = {
-    'apikey': key,
-    'Authorization': 'Bearer ' + key,
-    'Content-Type': 'application/json',
-    'Prefer': 'return=representation'
-  };
+/**
+ * ВОЛНА — Cloudflare Worker (ПОЛНАЯ ВЕРСИЯ ДЛЯ R2)
+ * * Настройки в Dashboard:
+ * 1. Variables: SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SECRET, R2_PUBLIC_URL
+ * 2. Bindings: R2 Bucket -> Variable name: MEDIA, Bucket: volna-media
+ */
 
-  async function query(table, opts = {}) {
-    let path = '/rest/v1/' + table;
-    const params = [];
-    if (opts.select) params.push('select=' + encodeURIComponent(opts.select));
-    if (opts.eq) Object.entries(opts.eq).forEach(([k,v]) => params.push(k + '=eq.' + encodeURIComponent(v)));
-    if (opts.in) Object.entries(opts.in).forEach(([k,v]) => params.push(k + '=in.(' + v.join(',') + ')'));
-    if (opts.order) params.push('order=' + opts.order);
-    if (opts.limit) params.push('limit=' + opts.limit);
-    if (opts.single) headers['Accept'] = 'application/vnd.pgrst.object+json';
-    else delete headers['Accept'];
-    if (params.length) path += '?' + params.join('&');
+// ── СИСТЕМНЫЕ ФУНКЦИИ (JWT, HASH, CORS) ──────────────────────────
 
-    const method = opts.method || 'GET';
-    const fetchOpts = { method, headers: { ...headers } };
-    if (opts.body) fetchOpts.body = JSON.stringify(opts.body);
-    if (method === 'POST') fetchOpts.headers['Prefer'] = 'return=representation';
-    if (method === 'PATCH') fetchOpts.headers['Prefer'] = 'return=representation';
-
-    const r = await fetch(url + path, fetchOpts);
-    if (!r.ok) {
-      const err = await r.text();
-      console.error('Supabase error:', r.status, err);
-      return { data: null, error: err };
-    }
-    const data = await r.json();
-    return { data, error: null };
-  }
-
-  return {
-    from(table) {
-      return {
-        select(cols) { return this._q({ select: cols || '*' }); },
-        insert(body) { return this._q({ method: 'POST', body }); },
-        update(body) { return this._q({ method: 'PATCH', body }); },
-        _q(extra) {
-          let opts = { ...extra };
-          return {
-            eq(k, v) { opts.eq = { ...(opts.eq||{}), [k]: v }; return this; },
-            in(k, v) { opts.in = { ...(opts.in||{}), [k]: v }; return this; },
-            order(col, o) { opts.order = col + (o?.ascending === false ? '.desc' : '.asc'); return this; },
-            limit(n) { opts.limit = n; return this; },
-            single() { opts.single = true; return this; },
-            then(res, rej) { return query(table, opts).then(res, rej); },
-            select(cols) { opts.select = cols; return this; }
-          };
-        }
-      };
-    }
-  };
-}
-
-// ── JWT (без npm — Web Crypto API) ───────────────────────────
 async function jwtSign(payload, secret) {
   const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
   const body = btoa(JSON.stringify(payload)).replace(/=/g,'').replace(/\+/g,'-').replace(/\//g,'_');
@@ -78,16 +25,10 @@ async function jwtVerify(token, secret) {
     const sigBuf = Uint8Array.from(atob(sig.replace(/-/g,'+').replace(/_/g,'/')), c => c.charCodeAt(0));
     const valid = await crypto.subtle.verify('HMAC', key, sigBuf, new TextEncoder().encode(data));
     if (!valid) return null;
-    const payload = JSON.parse(atob(body.replace(/-/g,'+').replace(/_/g,'/')));
-    if (payload.exp && payload.exp < Date.now() / 1000) return null;
-    return payload;
+    return JSON.parse(atob(body.replace(/-/g,'+').replace(/_/g,'/')));
   } catch { return null; }
 }
 
-// ── bcrypt-совместимый хэш (используем scrypt через Web Crypto) ──
-// Cloudflare Workers не поддерживают bcrypt, используем SHA-256 с солью
-// ВАЖНО: Это означает что старые bcrypt-пароли из Vercel НЕ будут работать!
-// Все пользователи должны перерегистрироваться (или сбросить пароль)
 async function hashPassword(password) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2,'0')).join('');
@@ -98,40 +39,25 @@ async function hashPassword(password) {
 }
 
 async function verifyPassword(password, stored) {
-  // Поддержка обоих форматов
-  if (!stored) return false;
-  if (stored.startsWith('pbkdf2:')) {
-    const [, saltHex, storedHash] = stored.split(':');
-    const salt = new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)));
-    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
-    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
-    const hash = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
-    return hash === storedHash;
-  }
-  // Старый bcrypt хэш — не совместим, вернём false
-  return false;
+  if (!stored || !stored.startsWith('pbkdf2:')) return false;
+  const [, saltHex, storedHash] = stored.split(':');
+  const salt = new Uint8Array(saltHex.match(/.{2}/g).map(b => parseInt(b, 16)));
+  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' }, key, 256);
+  const hash = Array.from(new Uint8Array(bits)).map(b => b.toString(16).padStart(2,'0')).join('');
+  return hash === storedHash;
 }
 
-// ── Утилиты ──────────────────────────────────────────────────
-function cors(headers = {}) {
-  return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-    ...headers
-  };
-}
+// ── УТИЛИТЫ ──────────────────────────────────────────────────
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: cors({ 'Content-Type': 'application/json' })
-  });
-}
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
 
-function err(msg, status = 400) {
-  return json({ error: msg }, status);
-}
+const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+const err = (msg, status = 400) => json({ error: msg }, status);
 
 function formatTime(isoStr) {
   const d = new Date(isoStr), now = new Date();
@@ -139,516 +65,168 @@ function formatTime(isoStr) {
   if (diff < 60) return 'только что';
   if (diff < 3600) return Math.floor(diff/60) + 'м назад';
   if (diff < 86400) return Math.floor(diff/3600) + 'ч назад';
-  if (diff < 604800) return Math.floor(diff/86400) + 'д назад';
   return d.toLocaleDateString('ru');
 }
 
-function chatKey(a, b) { return [a, b].sort((x,y) => x-y).join('-'); }
+// ── ЗАГРУЗКА В R2 ───────────────────────────────────────────
 
-function safeUser(u) {
-  if (!u) return null;
-  const { password_hash, ...safe } = u;
-  return safe;
-}
-
-function msgId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-}
-
-// ── Загрузка файла в Supabase Storage ────────────────────────
-async function uploadToStorage(env, fileData, filename, contentType) {
+async function uploadToR2(env, base64, filename) {
   try {
-    const path = filename;
-    const r = await fetch(env.SUPABASE_URL + '/storage/v1/object/media/' + path, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY,
-        'Content-Type': contentType || 'application/octet-stream',
-        'x-upsert': 'true'
-      },
-      body: fileData
-    });
-    if (!r.ok) {
-      const err = await r.text();
-      console.error('Storage upload error:', err);
-      return null;
-    }
-    return env.SUPABASE_URL + '/storage/v1/object/public/media/' + path;
-  } catch(e) {
-    console.error('Storage upload error:', e);
+    const parts = base64.split(';base64,');
+    const contentType = parts[0].split(':')[1] || 'application/octet-stream';
+    const raw = atob(parts[1]);
+    const buffer = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) buffer[i] = raw.charCodeAt(i);
+
+    // env.MEDIA — это привязка вашего бакета volna-media
+    await env.MEDIA.put(filename, buffer, { httpMetadata: { contentType } });
+    
+    const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, '');
+    return `${baseUrl}/${filename}`;
+  } catch (e) {
+    console.error('R2 Error:', e);
     return null;
   }
 }
-// Псевдоним для обратной совместимости
-const uploadToR2 = uploadToStorage;
 
-// Конвертация base64 → ArrayBuffer
-function base64ToBuffer(base64) {
-  const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
-  const binary = atob(base64Data);
-  const buffer = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) buffer[i] = binary.charCodeAt(i);
-  return buffer.buffer;
-}
+// ── SUPABASE CLIENT ──────────────────────────────────────────
 
-function getContentType(base64) {
-  const match = base64.match(/^data:([^;]+);/);
-  return match ? match[1] : 'application/octet-stream';
+function sb(env) {
+  const h = { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+  return {
+    async get(t, q = '') { return fetch(`${env.SUPABASE_URL}/rest/v1/${t}?${q}`, { headers: h }).then(r => r.json()); },
+    async post(t, d) { return fetch(`${env.SUPABASE_URL}/rest/v1/${t}`, { method: 'POST', headers: h, body: JSON.stringify(d) }).then(r => r.json()); },
+    async patch(t, d, f) { return fetch(`${env.SUPABASE_URL}/rest/v1/${t}?${f}`, { method: 'PATCH', headers: h, body: JSON.stringify(d) }).then(r => r.json()); }
+  };
 }
 
 // ── ГЛАВНЫЙ ОБРАБОТЧИК ────────────────────────────────────────
+
 export default {
   async fetch(request, env) {
-    // CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: cors() });
-    }
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders });
 
     const supabase = sb(env);
-    const JWT_SECRET = env.JWT_SECRET || 'volna_dev_secret';
-
-    const reqUrl = new URL(request.url);
-    const path = reqUrl.pathname.replace(/^\/api/, '');
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/^\/api/, '');
     const method = request.method;
-    const query = Object.fromEntries(reqUrl.searchParams);
+    const query = Object.fromEntries(url.searchParams);
 
-    // Парсим body
     let body = {};
-    if (['POST','PATCH','PUT'].includes(method)) {
-      try { body = await request.json(); } catch {}
-    }
+    if (['POST','PATCH','PUT'].includes(method)) { try { body = await request.json(); } catch {} }
 
-    // Получаем текущего пользователя
-    async function getAuthUser() {
+    // Auth Helper
+    const getAuth = async () => {
       const token = request.headers.get('Authorization')?.split(' ')[1];
-      if (!token) return null;
-      return await jwtVerify(token, JWT_SECRET);
-    }
-
-    // ── POST /api/register ──────────────────────────────────
-    if (path === '/register' && method === 'POST') {
-      const { username, name, password } = body;
-      if (!username || !name || !password) return err('Заполни все поля');
-      if (password.length < 4) return err('Пароль минимум 4 символа');
-      if (!/^[a-zA-Z0-9_]+$/.test(username)) return err('Только латиница, цифры и _');
-
-      const { data: existing } = await supabase.from('users').select('id').eq('id', 0)
-        ._q({ select: 'id', eq: { username } }).single();
-      // ↑ Более прямой запрос:
-      const chk = await fetch(env.SUPABASE_URL + '/rest/v1/users?select=id&username=eq.' + encodeURIComponent(username), {
-        headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY }
-      });
-      const chkData = await chk.json();
-      if (chkData.length > 0) return err('Это имя уже занято');
-
-      const passwordHash = await hashPassword(password);
-      const months = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
-      const now = new Date();
-      const joined = months[now.getMonth()] + ' ' + now.getFullYear();
-
-      const insRes = await fetch(env.SUPABASE_URL + '/rest/v1/users', {
-        method: 'POST',
-        headers: {
-          'apikey': env.SUPABASE_SERVICE_KEY,
-          'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
-        body: JSON.stringify({ username, name, password_hash: passwordHash, bio: '', joined, following: [], scores: {} })
-      });
-      if (!insRes.ok) return err('Ошибка сервера', 500);
-      const users = await insRes.json();
-      const user = Array.isArray(users) ? users[0] : users;
-      const token = await jwtSign({ id: user.id, exp: Math.floor(Date.now()/1000) + 30*24*3600 }, JWT_SECRET);
-      return json({ token, user: safeUser(user) });
-    }
-
-    // ── POST /api/login ─────────────────────────────────────
-    if (path === '/login' && method === 'POST') {
-      const { username, password } = body;
-      const r = await fetch(env.SUPABASE_URL + '/rest/v1/users?username=eq.' + encodeURIComponent(username), {
-        headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY }
-      });
-      const users = await r.json();
-      const user = users[0];
-      if (!user) return err('Неверный логин или пароль', 401);
-      const ok = await verifyPassword(password, user.password_hash);
-      if (!ok) return err('Неверный логин или пароль', 401);
-      const token = await jwtSign({ id: user.id, exp: Math.floor(Date.now()/1000) + 30*24*3600 }, JWT_SECRET);
-      return json({ token, user: safeUser(user) });
-    }
-
-    // ── Всё ниже требует авторизации ────────────────────────
-    const authUser = await getAuthUser();
-    if (!authUser) return err('Нет доступа', 401);
-
-    const supa = {
-      async get(table, params) {
-        let u = env.SUPABASE_URL + '/rest/v1/' + table + '?';
-        if (params) u += params;
-        const r = await fetch(u, { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY } });
-        return r.json();
-      },
-      async post(table, data) {
-        const r = await fetch(env.SUPABASE_URL + '/rest/v1/' + table, {
-          method: 'POST',
-          headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-          body: JSON.stringify(data)
-        });
-        const d = await r.json();
-        return Array.isArray(d) ? d[0] : d;
-      },
-      async patch(table, data, filter) {
-        const r = await fetch(env.SUPABASE_URL + '/rest/v1/' + table + '?' + filter, {
-          method: 'PATCH',
-          headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-          body: JSON.stringify(data)
-        });
-        const d = await r.json();
-        return Array.isArray(d) ? d[0] : d;
-      }
+      return token ? await jwtVerify(token, env.JWT_SECRET) : null;
     };
 
-    // ── GET /api/me ─────────────────────────────────────────
+    // ── МАРШРУТЫ БЕЗ АВТОРИЗАЦИИ ──
+    
+    if (path === '/register' && method === 'POST') {
+      const { username, name, password } = body;
+      const hashed = await hashPassword(password);
+      const user = await supabase.post('users', { username, name, password_hash: hashed, joined: 'апрель 2026', following: [], scores: {} });
+      const token = await jwtSign({ id: user[0].id }, env.JWT_SECRET);
+      return json({ token, user: user[0] });
+    }
+
+    if (path === '/login' && method === 'POST') {
+      const users = await supabase.get('users', `username=eq.${body.username}`);
+      if (!users[0] || !(await verifyPassword(body.password, users[0].password_hash))) return err('Ошибка входа', 401);
+      const token = await jwtSign({ id: users[0].id }, env.JWT_SECRET);
+      return json({ token, user: users[0] });
+    }
+
+    // ── МАРШРУТЫ С АВТОРИЗАЦИЕЙ ──
+    
+    const auth = await getAuth();
+    if (!auth) return err('Доступ запрещен', 401);
+
+    // Профиль
     if (path === '/me' && method === 'GET') {
-      const users = await supa.get('users', 'select=id,username,name,bio,joined,interests,banner_color,following,avatar_url,scores&id=eq.' + authUser.id);
-      return json(users[0] || {});
+      const u = await supabase.get('users', `id=eq.${auth.id}`);
+      return json(u[0]);
     }
 
-    // ── PATCH /api/me ────────────────────────────────────────
     if (path === '/me' && method === 'PATCH') {
-      const { name, bio, interests, banner_color, avatar_base64, liked_tracks, playlist } = body;
-      const updates = {};
-      if (name) updates.name = name;
-      if (bio !== undefined) updates.bio = bio;
-      if (interests !== undefined) updates.interests = interests;
-      if (banner_color !== undefined) updates.banner_color = banner_color;
-      if (liked_tracks !== undefined) updates.liked_tracks = liked_tracks;
-      if (playlist !== undefined) updates.playlist = playlist;
-
-      // Загружаем аватар в Supabase Storage
-      if (avatar_base64) {
-        const ct = getContentType(avatar_base64);
-        const ext = ct.split('/')[1] || 'jpg';
-        const filename = 'avatars/' + authUser.id + '.' + ext;
-        const url = await uploadToR2(env, base64ToBuffer(avatar_base64), filename, ct);
-        if (url) updates.avatar_url = url;
-        else updates.avatar_url = avatar_base64; // fallback
+      if (body.avatar_base64) {
+        const fileName = `avatars/${auth.id}_${Date.now()}.jpg`;
+        body.avatar_url = await uploadToR2(env, body.avatar_base64, fileName);
+        delete body.avatar_base64;
       }
-
-      const updated = await supa.patch('users', updates, 'id=eq.' + authUser.id);
-      return json(safeUser(updated) || {});
+      const updated = await supabase.patch('users', body, `id=eq.${auth.id}`);
+      return json(updated);
     }
 
-    // ── GET /api/users ───────────────────────────────────────
-    if (path === '/users' && method === 'GET') {
-      const users = await supa.get('users', 'select=id,username,name,bio,following,avatar_url,banner_color,joined,interests');
-      return json(users || []);
-    }
-
-    // ── POST /api/follow?id=X ────────────────────────────────
-    if (path === '/follow' && method === 'POST') {
-      const targetId = parseInt(query.id);
-      const me = await supa.get('users', 'select=following&id=eq.' + authUser.id);
-      let following = me[0]?.following || [];
-      const idx = following.indexOf(targetId);
-      if (idx === -1) following.push(targetId); else following.splice(idx, 1);
-      await supa.patch('users', { following }, 'id=eq.' + authUser.id);
-      return json({ following });
-    }
-
-    // ── GET /api/posts ───────────────────────────────────────
+    // Посты
     if (path === '/posts' && method === 'GET') {
-      if (query.userId === 'all') {
-        const posts = await supa.get('posts', 'select=*&order=created_at.desc&limit=100');
-        return json((posts||[]).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
-      }
-      if (query.userId) {
-        const posts = await supa.get('posts', 'select=*&user_id=eq.' + parseInt(query.userId) + '&order=created_at.desc');
-        return json((posts||[]).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
-      }
-      const me = await supa.get('users', 'select=following&id=eq.' + authUser.id);
-      const ids = [authUser.id, ...(me[0]?.following || [])];
-      const posts = await supa.get('posts', 'select=*&user_id=in.(' + ids.join(',') + ')&order=created_at.desc');
-      return json((posts||[]).map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
+      const posts = await supabase.get('posts', 'select=*&order=created_at.desc');
+      return json(posts.map(p => ({ ...p, timeFormatted: formatTime(p.created_at) })));
     }
 
-    // ── POST /api/posts ──────────────────────────────────────
     if (path === '/posts' && method === 'POST') {
-      const { text, image_base64 } = body;
-      if (!text?.trim() && !image_base64) return err('Текст или фото обязательны');
-
       let image_url = null;
-      // Загружаем фото в Supabase Storage
-      if (image_base64) {
-        const ct = getContentType(image_base64);
-        const ext = ct.split('/')[1] || 'jpg';
-        const filename = 'posts/' + Date.now() + '_' + authUser.id + '.' + ext;
-        image_url = await uploadToR2(env, base64ToBuffer(image_base64), filename, ct);
-        if (!image_url) image_url = image_base64; // fallback
+      if (body.image_base64) {
+        image_url = await uploadToR2(env, body.image_base64, `posts/${auth.id}_${Date.now()}.jpg`);
       }
-
-      const post = await supa.post('posts', {
-        user_id: authUser.id,
-        text: text?.trim() || '',
-        likes: [], comments: [],
-        image_url
-      });
-      return json({ ...post, timeFormatted: 'только что' });
+      const post = await supabase.post('posts', { user_id: auth.id, text: body.text, image_url, likes: [], comments: [] });
+      return json(post);
     }
 
-    // ── POST /api/post-action?id=X&action=like|comment ───────
-    if (path === '/post-action' && method === 'POST') {
-      const postId = parseInt(query.id);
-      const posts = await supa.get('posts', 'select=*&id=eq.' + postId);
-      const post = posts[0];
-      if (!post) return err('Пост не найден', 404);
-
-      if (query.action === 'like') {
-        let likes = post.likes || [];
-        const idx = likes.indexOf(authUser.id);
-        if (idx === -1) likes.push(authUser.id); else likes.splice(idx, 1);
-        await supa.patch('posts', { likes }, 'id=eq.' + postId);
-        return json({ likes });
-      }
-      if (query.action === 'comment') {
-        const { text } = body;
-        if (!text?.trim()) return err('Текст пуст');
-        const comment = { userId: authUser.id, text: text.trim(), time: new Date().toISOString() };
-        const comments = [...(post.comments||[]), comment];
-        await supa.patch('posts', { comments }, 'id=eq.' + postId);
-        return json(comment);
-      }
-      return err('Неизвестное действие');
+    // Чат / Сообщения
+    if (path === '/messages' && method === 'GET') {
+      const chatKey = [auth.id, body.userId].sort().join('-');
+      const rows = await supabase.get('messages', `chat_key=eq.${chatKey}`);
+      return json(rows[0]?.messages || []);
     }
 
-    // ── POST /api/heartbeat ──────────────────────────────────
-    if (path === '/heartbeat' && method === 'POST') {
-      await supa.patch('presence', { last_seen: new Date().toISOString() }, 'user_id=eq.' + authUser.id).catch(() => {});
-      await fetch(env.SUPABASE_URL + '/rest/v1/presence', {
-        method: 'POST',
-        headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ user_id: authUser.id, last_seen: new Date().toISOString() })
-      });
-      return json({ ok: true });
-    }
-
-    // ── GET /api/online?ids=1,2,3 ────────────────────────────
-    if (path === '/online' && method === 'GET') {
-      const ids = (query.ids||'').split(',').map(Number).filter(Boolean);
-      if (!ids.length) return json({});
-      const since = new Date(Date.now() - 20000).toISOString();
-      const rows = await supa.get('presence', 'select=user_id,last_seen&user_id=in.(' + ids.join(',') + ')&last_seen=gte.' + since);
-      const result = {};
-      (rows||[]).forEach(r => { result[r.user_id] = true; });
-      return json(result);
-    }
-
-    // ── POST /api/typing?to=X ────────────────────────────────
-    if (path === '/typing' && method === 'POST') {
-      const toId = parseInt(query.to);
-      await fetch(env.SUPABASE_URL + '/rest/v1/presence', {
-        method: 'POST',
-        headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': 'Bearer ' + env.SUPABASE_SERVICE_KEY, 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ user_id: authUser.id, last_seen: new Date().toISOString(), typing_to: toId, typing_at: new Date().toISOString() })
-      });
-      return json({ ok: true });
-    }
-
-    // ── GET /api/typing?from=X ───────────────────────────────
-    if (path === '/typing' && method === 'GET') {
-      const fromId = parseInt(query.from);
-      const rows = await supa.get('presence', 'select=typing_to,typing_at&user_id=eq.' + fromId);
-      const d = rows[0];
-      const typing = d && d.typing_to === authUser.id && d.typing_at && new Date(d.typing_at) > new Date(Date.now() - 3500);
-      return json({ typing: !!typing });
-    }
-
-    // ── GET /api/messages ── список чатов ────────────────────
-    if (path === '/messages' && method === 'GET' && !query.userId) {
-      const rows = await supa.get('messages', 'select=*&or=(user1_id.eq.' + authUser.id + ',user2_id.eq.' + authUser.id + ')');
-      const convos = await Promise.all((rows||[]).map(async row => {
-        const otherId = row.user1_id === authUser.id ? row.user2_id : row.user1_id;
-        const users = await supa.get('users', 'select=id,name,username&id=eq.' + otherId);
-        const other = users[0];
-        const msgs = row.messages || [];
-        const last = msgs.length ? msgs[msgs.length-1] : null;
-        return { userId: otherId, name: other?.name||'', username: other?.username||'', lastMessage: last?.text||'', lastTime: last?.time||'' };
-      }));
-      return json(convos);
-    }
-
-    // ── GET /api/messages?userId=X ───────────────────────────
-    if (path === '/messages' && method === 'GET' && query.userId) {
-      const otherId = parseInt(query.userId);
-      const key = chatKey(authUser.id, otherId);
-      const rows = await supa.get('messages', 'select=messages&chat_key=eq.' + key);
-      const msgs = (rows[0]?.messages||[]).map(m => ({
-        ...m,
-        timeFormatted: new Date(m.time).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' })
-      }));
-      return json(msgs);
-    }
-
-    // ── POST /api/messages?userId=X ── отправить ─────────────
-    if (path === '/messages' && method === 'POST' && query.userId && !query.action) {
-      const otherId = parseInt(query.userId);
-      const { text, image_base64 } = body;
-      if (!text?.trim() && !image_base64) return err('Пусто');
-
+    if (path === '/messages' && method === 'POST') {
+      const chatKey = [auth.id, body.userId].sort().join('-');
       let image_url = null;
-      if (image_base64) {
-        const ct = getContentType(image_base64);
-        const ext = ct.split('/')[1] || 'jpg';
-        const filename = 'messages/' + msgId() + '.' + ext;
-        image_url = await uploadToR2(env, base64ToBuffer(image_base64), filename, ct);
-        if (!image_url) image_url = image_base64;
+      if (body.image_base64) {
+        image_url = await uploadToR2(env, body.image_base64, `chats/${Date.now()}.jpg`);
       }
-
-      const key = chatKey(authUser.id, otherId);
-      const rows = await supa.get('messages', 'select=*&chat_key=eq.' + key);
-      const existing = rows[0];
-      const newMsg = { id: msgId(), from: authUser.id, text: text?.trim()||'', image_url, time: new Date().toISOString() };
-
-      if (existing) {
-        await supa.patch('messages', { messages: [...(existing.messages||[]), newMsg] }, 'chat_key=eq.' + key);
+      const newMsg = { id: Date.now().toString(36), from: auth.id, text: body.text, image_url, time: new Date().toISOString() };
+      
+      const existing = await supabase.get('messages', `chat_key=eq.${chatKey}`);
+      if (existing[0]) {
+        await supabase.patch('messages', { messages: [...existing[0].messages, newMsg] }, `chat_key=eq.${chatKey}`);
       } else {
-        const [u1,u2] = key.split('-').map(Number);
-        await supa.post('messages', { chat_key: key, user1_id: u1, user2_id: u2, messages: [newMsg] });
+        await supabase.post('messages', { chat_key: chatKey, user1_id: auth.id, user2_id: body.userId, messages: [newMsg] });
       }
-      return json({ ...newMsg, timeFormatted: new Date(newMsg.time).toLocaleTimeString('ru', { hour:'2-digit', minute:'2-digit' }) });
+      return json(newMsg);
     }
 
-    // ── DELETE /api/messages?userId=X&msgId=Y ────────────────
-    if (path === '/messages' && method === 'DELETE' && query.userId) {
-      const otherId = parseInt(query.userId);
-      const key = chatKey(authUser.id, otherId);
-      const rows = await supa.get('messages', 'select=*&chat_key=eq.' + key);
-      const row = rows[0];
-      if (!row) return err('Чат не найден', 404);
-      const msgs = row.messages||[];
-      const idx = query.msgId ? msgs.findIndex(m => m.id === query.msgId) : parseInt(query.msgIdx||'-1');
-      if (idx < 0 || idx >= msgs.length) return err('Не найдено', 404);
-      if (msgs[idx].from !== authUser.id) return err('Нельзя удалить чужое', 403);
-      msgs[idx] = { ...msgs[idx], deleted: true, text: '', image_url: null };
-      await supa.patch('messages', { messages: msgs }, 'chat_key=eq.' + key);
-      return json({ ok: true });
-    }
-
-    // ── PATCH /api/messages?userId=X&msgId=Y ─────────────────
-    if (path === '/messages' && method === 'PATCH' && query.userId) {
-      const otherId = parseInt(query.userId);
-      const { text } = body;
-      if (!text?.trim()) return err('Пусто');
-      const key = chatKey(authUser.id, otherId);
-      const rows = await supa.get('messages', 'select=*&chat_key=eq.' + key);
-      const row = rows[0];
-      if (!row) return err('Чат не найден', 404);
-      const msgs = row.messages||[];
-      const idx = query.msgId ? msgs.findIndex(m => m.id === query.msgId) : parseInt(query.msgIdx||'-1');
-      if (idx < 0 || idx >= msgs.length) return err('Не найдено', 404);
-      if (msgs[idx].from !== authUser.id) return err('Нельзя редактировать чужое', 403);
-      msgs[idx] = { ...msgs[idx], text: text.trim(), edited: true };
-      await supa.patch('messages', { messages: msgs }, 'chat_key=eq.' + key);
-      return json({ ok: true });
-    }
-
-    // ── POST /api/messages?userId=X&msgId=Y&action=react ─────
-    if (path === '/messages' && method === 'POST' && query.userId && query.action === 'react') {
-      const otherId = parseInt(query.userId);
-      const { emoji } = body;
-      if (!emoji) return err('Нет эмодзи');
-      const key = chatKey(authUser.id, otherId);
-      const rows = await supa.get('messages', 'select=*&chat_key=eq.' + key);
-      const row = rows[0];
-      if (!row) return err('Чат не найден', 404);
-      const msgs = row.messages||[];
-      const idx = query.msgId ? msgs.findIndex(m => m.id === query.msgId) : parseInt(query.msgIdx||'-1');
-      if (idx < 0 || idx >= msgs.length) return err('Не найдено', 404);
-      const reactions = msgs[idx].reactions||{};
-      if (!reactions[emoji]) reactions[emoji] = [];
-      const ui = reactions[emoji].indexOf(authUser.id);
-      if (ui === -1) reactions[emoji].push(authUser.id); else reactions[emoji].splice(ui,1);
-      if (!reactions[emoji].length) delete reactions[emoji];
-      msgs[idx] = { ...msgs[idx], reactions };
-      await supa.patch('messages', { messages: msgs }, 'chat_key=eq.' + key);
-      return json({ reactions });
-    }
-
-    // ── GET /api/reels ───────────────────────────────────────
+    // Reels (Видео)
     if (path === '/reels' && method === 'GET') {
-      const reels = await supa.get('reels', 'select=*&order=created_at.desc&limit=50');
-      return json(reels||[]);
+      return json(await supabase.get('reels', 'select=*&order=created_at.desc'));
     }
 
-    // ── POST /api/reels ──────────────────────────────────────
     if (path === '/reels' && method === 'POST') {
-      const { video_base64, caption } = body;
-      if (!video_base64) return err('Видео обязательно');
-
-      const ct = getContentType(video_base64) || 'video/mp4';
-      const ext = ct.split('/')[1] || 'mp4';
-      const filename = 'reels/' + Date.now() + '_' + authUser.id + '.' + ext;
-      let video_url = await uploadToR2(env, base64ToBuffer(video_base64), filename, ct);
-      if (!video_url) return err('Ошибка загрузки видео', 500);
-
-      const reel = await supa.post('reels', {
-        user_id: authUser.id, video_url, caption: caption?.trim()||'', likes: [], views: 0
-      });
+      const video_url = await uploadToR2(env, body.video_base64, `reels/${auth.id}_${Date.now()}.mp4`);
+      if (!video_url) return err('Ошибка загрузки видео');
+      const reel = await supabase.post('reels', { user_id: auth.id, video_url, caption: body.caption, likes: [], views: 0 });
       return json(reel);
     }
 
-    // ── POST /api/reels-action?id=X&action=like|view ─────────
-    if (path === '/reels-action' && method === 'POST') {
-      const reelId = parseInt(query.id);
-      const reels = await supa.get('reels', 'select=*&id=eq.' + reelId);
-      const reel = reels[0];
-      if (!reel) return err('Не найдено', 404);
-      if (query.action === 'like') {
-        let likes = reel.likes||[];
-        const idx = likes.indexOf(authUser.id);
-        if (idx === -1) likes.push(authUser.id); else likes.splice(idx,1);
-        await supa.patch('reels', { likes }, 'id=eq.' + reelId);
-        return json({ likes });
-      }
-      if (query.action === 'view') {
-        await supa.patch('reels', { views: (reel.views||0)+1 }, 'id=eq.' + reelId);
-        return json({ ok: true });
-      }
-      return err('Неизвестное действие');
-    }
-
-    // ── GET /api/scores ──────────────────────────────────────
-    if (path === '/scores' && method === 'GET') {
-      const users = await supa.get('users', 'select=scores&id=eq.' + authUser.id);
-      return json(users[0]?.scores||{});
-    }
-
-    // ── POST /api/scores?game=X&score=Y ─────────────────────
+    // Игры / Счета
     if (path === '/scores' && method === 'POST') {
-      const game = query.game, newScore = parseInt(query.score);
-      if (!game || isNaN(newScore)) return err('Нет данных');
-      const users = await supa.get('users', 'select=scores&id=eq.' + authUser.id);
-      const scores = users[0]?.scores||{};
-      if (!scores[game] || newScore > scores[game]) {
-        scores[game] = newScore;
-        await supa.patch('users', { scores }, 'id=eq.' + authUser.id);
+      const u = await supabase.get('users', `id=eq.${auth.id}`);
+      const scores = u[0].scores || {};
+      if (!scores[body.game] || body.score > scores[body.game]) {
+        scores[body.game] = body.score;
+        await supabase.patch('users', { scores }, `id=eq.${auth.id}`);
       }
-      return json({ best: scores[game] });
+      return json({ best: scores[body.game] });
     }
 
-    // ── POST /api/upload ── прямая загрузка файла в Storage ───────
+    // Универсальная загрузка (Шаг 4)
     if (path === '/upload' && method === 'POST') {
-      const { file_base64, folder, name } = body;
-      if (!file_base64) return err('Нет файла');
-      const ct = getContentType(file_base64);
-      const ext = ct.split('/')[1] || 'bin';
-      const filename = (folder||'uploads') + '/' + (name || (Date.now() + '_' + authUser.id)) + '.' + ext;
-      const url = await uploadToR2(env, base64ToBuffer(file_base64), filename, ct);
-      if (!url) return err('Ошибка загрузки', 500);
+      const url = await uploadToR2(env, body.file_base64, `${body.folder || 'misc'}/${Date.now()}_${body.name || 'file'}`);
       return json({ url });
     }
 
-    return err('Не найдено', 404);
+    return err('Маршрут не найден', 404);
   }
 };
