@@ -1,0 +1,7 @@
+name = "volna-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Переменные — задай через Cloudflare Dashboard → Workers → Settings → Variables:
+# SUPABASE_URL, SUPABASE_SERVICE_KEY, JWT_SECRET
