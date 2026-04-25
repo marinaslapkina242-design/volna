@@ -1,4 +1,3 @@
-
 function sb(env) {
   const url = env.SUPABASE_URL;
   const key = env.SUPABASE_SERVICE_KEY;
