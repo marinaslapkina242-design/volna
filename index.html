@@ -756,7 +756,7 @@ html,body{height:100%;}
 </div>
 
 <script>
-const API = '';
+const API = ''; // Back4app — сервер и фронтенд на одном домене
 // Supabase Storage — загружаем файлы напрямую из браузера
 const SUPABASE_URL = 'https://nldqqqggetegdlgfecma.supabase.co';
 
@@ -919,8 +919,9 @@ function postHTML(post) {
   const ini = initials(author.name);
   const liked = (post.likes||[]).includes(me.id);
   const comments = post.comments||[];
-  const imgHtml = post.image_base64
-    ? `<img class="post-image" src="${post.image_base64}" alt="" onclick="openImgViewer('${post.image_base64}')">`
+  const imgSrc = post.image_url || post.image_base64;
+    const imgHtml = imgSrc
+    ? `<img class="post-image" src="${imgSrc}" alt="" onclick="openImgViewer('${imgSrc}')">`
     : '';
   const avatarHtml = author.avatar_base64
     ? `<img src="${author.avatar_base64}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`
