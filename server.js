@@ -2,17 +2,131 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { createClient } from '@supabase/supabase-js';
+import pg from 'pg';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const { Pool } = pg;
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+// Supabase-совместимый интерфейс для PostgreSQL
+const supabase = {
+  from: (table) => new SupabaseQuery(table)
+};
+
+class SupabaseQuery {
+  constructor(table) {
+    this.table = table;
+    this._select = '*';
+    this._conditions = [];
+    this._order = null;
+    this._limit = null;
+    this._single = false;
+    this._method = 'SELECT';
+    this._body = null;
+    this._inConditions = [];
+    this._orConditions = [];
+  }
+  select(cols) { this._select = cols || '*'; return this; }
+  eq(col, val) { this._conditions.push({ col, val }); return this; }
+  in(col, vals) { this._inConditions.push({ col, vals }); return this; }
+  or(str) { this._orConditions.push(str); return this; }
+  gte(col, val) { this._conditions.push({ col, val, op: '>=' }); return this; }
+  order(col, opts) { this._order = { col, desc: opts?.ascending === false }; return this; }
+  limit(n) { this._limit = n; return this; }
+  single() { this._single = true; return this; }
+  insert(body) { this._method = 'INSERT'; this._body = body; return this; }
+  update(body) { this._method = 'UPDATE'; this._body = body; return this; }
+  upsert(body, opts) { this._method = 'UPSERT'; this._body = body; this._upsertOpts = opts; return this; }
+  delete() { this._method = 'DELETE'; return this; }
+
+  async _run() {
+    const client = await pool.connect();
+    try {
+      if (this._method === 'SELECT') {
+        let params = [];
+        let where = [];
+        for (const c of this._conditions) {
+          params.push(c.val);
+          where.push(`"${c.col}" ${c.op||'='} $${params.length}`);
+        }
+        for (const c of this._inConditions) {
+          params.push(c.vals);
+          where.push(`"${c.col}" = ANY($${params.length})`);
+        }
+        for (const orStr of this._orConditions) {
+          const parts = orStr.split(',').map(p => {
+            const m = p.match(/(\w+)\.(eq|gte)\.(.+)/);
+            if (!m) return null;
+            params.push(m[3]);
+            return `"${m[1]}" ${m[2]==='eq'?'=':'>='} $${params.length}`;
+          }).filter(Boolean);
+          if (parts.length) where.push('(' + parts.join(' OR ') + ')');
+        }
+        let q = \`SELECT \${this._select === '*' ? '*' : this._select.split(',').map(c=>c.trim()).map(c=>\`"\${c}"\`).join(',')} FROM "\${this.table}"\`;
+        if (where.length) q += ' WHERE ' + where.join(' AND ');
+        if (this._order) q += \` ORDER BY "\${this._order.col}" \${this._order.desc?'DESC':'ASC'}\`;
+        if (this._limit) q += \` LIMIT \${this._limit}\`;
+        const res = await client.query(q, params);
+        const data = this._single ? (res.rows[0] || null) : res.rows;
+        return { data, error: null };
+      }
+      if (this._method === 'INSERT') {
+        const body = Array.isArray(this._body) ? this._body : [this._body];
+        const results = [];
+        for (const row of body) {
+          const keys = Object.keys(row);
+          const vals = Object.values(row);
+          const q = \`INSERT INTO "\${this.table}" (\${keys.map(k=>\`"\${k}"\`).join(',')}) VALUES (\${vals.map((_,i)=>'$'+(i+1)).join(',')}) RETURNING *\`;
+          const res = await client.query(q, vals);
+          results.push(res.rows[0]);
+        }
+        const data = this._single ? results[0] : results;
+        return { data, error: null };
+      }
+      if (this._method === 'UPDATE') {
+        const keys = Object.keys(this._body);
+        const vals = Object.values(this._body);
+        let params = [...vals];
+        const sets = keys.map((k,i) => \`"\${k}"=$\${i+1}\`).join(',');
+        let where = this._conditions.map(c => { params.push(c.val); return \`"\${c.col}"=$\${params.length}\`; });
+        let q = \`UPDATE "\${this.table}" SET \${sets}\`;
+        if (where.length) q += ' WHERE ' + where.join(' AND ');
+        q += ' RETURNING *';
+        const res = await client.query(q, params);
+        const data = this._single ? (res.rows[0]||null) : res.rows;
+        return { data, error: null };
+      }
+      if (this._method === 'UPSERT') {
+        const body = this._body;
+        const keys = Object.keys(body);
+        const vals = Object.values(body);
+        const conflict = this._upsertOpts?.onConflict || 'id';
+        const sets = keys.filter(k=>k!==conflict).map((k,i)=>\`"\${k}"=EXCLUDED."\${k}"\`).join(',');
+        const q = \`INSERT INTO "\${this.table}" (\${keys.map(k=>\`"\${k}"\`).join(',')}) VALUES (\${vals.map((_,i)=>'$'+(i+1)).join(',')}) ON CONFLICT ("\${conflict}") DO UPDATE SET \${sets} RETURNING *\`;
+        const res = await client.query(q, vals);
+        return { data: res.rows[0], error: null };
+      }
+      return { data: null, error: 'Unknown method' };
+    } catch(e) {
+      console.error('DB error:', e.message);
+      return { data: null, error: e.message };
+    } finally {
+      client.release();
+    }
+  }
+  then(resolve, reject) { return this._run().then(resolve, reject); }
+}
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.static('.'));
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const JWT_SECRET = process.env.JWT_SECRET || 'volna_secret_2025';
 
 // ── Утилиты ──
@@ -378,6 +492,11 @@ app.post('/api/heartbeat', async (req, res) => {
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, 'index.html'));
+});
+
+// SPA fallback
 app.get('*', (req, res) => {
   res.sendFile(join(__dirname, 'index.html'));
 });
