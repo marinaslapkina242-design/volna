@@ -374,5 +374,13 @@ app.post('/api/heartbeat', async (req, res) => {
   res.json({ ok: true });
 });
 
+// SPA fallback — все не-API маршруты отдают index.html
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, 'index.html'));
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🌊 Волна запущена на порту ${PORT}`));
